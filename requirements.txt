@@ -1,0 +1,2 @@
+# Only needed on Windows (Linux/macOS ship their own time zone database).
+tzdata; sys_platform == "win32"

@@ -3,6 +3,9 @@
 data/
 output/
 raw/
+exports_wt/
+__pycache__/
+*.pyc
 
 # Secrets
 .env

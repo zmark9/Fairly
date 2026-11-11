@@ -1,0 +1,32 @@
+{
+  "timezone": "America/Phoenix",
+  "owner": {
+    "user_id": "VXWgMO86OUtXjdhioDG22",
+    "last_initial": "Z"
+  },
+  "homes": [
+    {
+      "id": "m3C823iHokWV3CSBFjkFU",
+      "name": "Papago Park Condo w/ Pool & Hot Tub",
+      "slug": "papago_park",
+      "timezone": "America/Phoenix",
+      "remotelock": false
+    },
+    {
+      "id": "wDGU0odwZhMn_liZWCTHm",
+      "name": "Big Sky Mountain Retreat | Ski-In/Ski-Out",
+      "slug": "big_sky",
+      "timezone": "America/Denver",
+      "remotelock": true
+    }
+  ],
+  "email": {
+    "enabled": true,
+    "api_url": "https://messaging.zmark.net/api/email/sendemailform",
+    "to_email": "",
+    "to_name": "",
+    "send_when_unchanged": false,
+    "attach_files": true,
+    "exports_url": "https://github.com/zmark9/Fairly/tree/exports"
+  }
+}

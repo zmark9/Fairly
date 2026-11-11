@@ -10,12 +10,33 @@ Target runtime: **Azure Function, timer trigger (cron)**.
 ## Status
 
 - [x] Manual proof of concept via Claude + Fairly MCP (Nov 2026): CSV exports in this folder.
-- [ ] Phase 1: Spec and open questions resolved
-- [ ] Phase 2: Fairly data access from a headless job
-- [ ] Phase 3: Normalization and transform module (tested)
-- [ ] Phase 4: Owner API integration
-- [ ] Phase 5: RemoteLock CSV generation (Big Sky)
-- [ ] Phase 6: Azure Function deployment, scheduling, monitoring
+- [x] Phase 1: Spec written (some open questions remain, see below)
+- [ ] Phase 2: Fairly data access from a headless job (Claude Scheduled Task + Fairly connector)
+- [x] Phase 3: Transform module `sync.py` with tests, verified against the manual exports
+- [ ] Phase 4: Owner API integration (email summary via `notify.py` written; reservations API not started)
+- [x] Phase 5: RemoteLock CSV generation (Big Sky)
+- [ ] Phase 6: Scheduling and monitoring
+
+## Code layout
+
+| File | Purpose |
+|---|---|
+| `config.json` | Homes in scope, owner ID, email settings |
+| `sync.py` | Raw Fairly JSON (`raw/`) → CSVs + `summary.json` (`output/`). All business rules live here. |
+| `notify.py` | Emails `summary.json` and the RemoteLock rows through the messaging API |
+| `run_sync.sh` | Cloud entry point: exports branch worktree → `sync.py` → commit/push `exports` → `notify.py` |
+| `tests/test_sync.py` | Unit tests with made-up data: `py -m unittest discover -s tests` |
+
+Local run (Windows): `py -m pip install -r requirements.txt`, put `get_reservation_by_id` JSON files in `raw/`, then `py sync.py --raw raw --out output`. Test the email with `py notify.py --out output --dry-run`, or against the local server with `--api-url https://localhost:7075/api/email/sendemailform --insecure --force`.
+
+**Exports branch:** `exports` is an orphan branch holding only the latest CSVs and summary, one commit per run that changed something. It contains guest PII and must stay in a private repo.
+
+**Email API notes** (`POST https://messaging.zmark.net/api/email/sendemailform`, test server `https://localhost:7075/api/email/sendemailform`):
+- `[FromForm] EmailToSend`, sent as multipart/form-data: `ToEmail`, `ToName`, `Subject`, `EmailBody` (HTML) and `Attachments` (the RemoteLock CSVs).
+- The application ID is fixed at 2 in the API, which also sets the From address (`GetAdminInfo`). Don't send From fields.
+- A `checkUserAgent` filter blocks script User-Agents (`python-urllib`, `python-requests`, `curl/`, `Headless`, ...). `notify.py` sends `FairlyReservationSync/1.0`; keep it that way.
+- Auth: none for now (shelved). It uses the `PublicForm` rate limit.
+- The old `sendemail` ([FromBody]) action is still used elsewhere. Don't change it.
 
 ## Homes in scope
 
