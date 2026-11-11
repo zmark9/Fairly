@@ -41,6 +41,17 @@ def load_remotelock_tables(out_dir):
     return tables
 
 
+def find_attachments(out_dir, cfg):
+    """Files to attach, from config email.attachments (file names or glob patterns)."""
+    patterns = cfg.get("attachments") or ["remotelock_*.csv"]
+    found = []
+    for pattern in patterns:
+        for path in sorted(Path(out_dir).glob(pattern)):
+            if path not in found:
+                found.append(path)
+    return found
+
+
 def build_subject(summary):
     parts = [f"{len(summary['added'])} new", f"{len(summary['changed'])} changed",
              f"{len(summary['cancelled'])} cancelled"]
@@ -148,7 +159,7 @@ def main(argv=None):
 
     fields = email_fields(cfg, build_subject(summary),
                           build_body(summary, load_remotelock_tables(args.out), cfg.get("exports_url"), args.note))
-    attachments = sorted(Path(args.out).glob("remotelock_*.csv")) if cfg.get("attach_files") else []
+    attachments = find_attachments(args.out, cfg) if cfg.get("attach_files") else []
     request = multipart_request(url, fields, attachments)
 
     if args.dry_run:
