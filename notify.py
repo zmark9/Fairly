@@ -29,7 +29,9 @@ import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 
 def load_remotelock_tables(out_dir):
@@ -39,6 +41,14 @@ def load_remotelock_tables(out_dir):
         with path.open(newline="", encoding="utf-8") as handle:
             tables[path.name] = list(csv.DictReader(handle))
     return tables
+
+
+def is_manual_run(now_local, scheduled_hour):
+    """The routine fires in the `scheduled_hour` (local time). A run at any other
+    hour must have been started by hand (Run now), so it always sends an email."""
+    if scheduled_hour is None:
+        return False
+    return now_local.hour != int(scheduled_hour)
 
 
 def find_attachments(out_dir, cfg):
@@ -137,14 +147,20 @@ def main(argv=None):
     parser.add_argument("--note", default="", help="highlighted message at the top (e.g. push failure); forces a send")
     args = parser.parse_args(argv)
 
-    cfg = json.loads(Path(args.config).read_text(encoding="utf-8-sig"))["email"]  # -sig: tolerate a BOM
+    config = json.loads(Path(args.config).read_text(encoding="utf-8-sig"))  # -sig: tolerate a BOM
+    cfg = config["email"]
     summary = json.loads((Path(args.out) / "summary.json").read_text(encoding="utf-8"))
 
     if not cfg.get("enabled", True):
         print("Email disabled in config.json; skipping.")
         return 0
+
+    now_local = datetime.now(ZoneInfo(config.get("timezone", "America/Phoenix")))
+    manual = is_manual_run(now_local, cfg.get("scheduled_hour"))
+    if manual:
+        print(f"Manual run ({now_local:%H:%M} local is outside the scheduled hour); sending email.")
     if not summary["has_changes"] and not summary["warnings"] and not cfg.get("send_when_unchanged") \
-            and not args.force and not args.note:
+            and not args.force and not args.note and not manual:
         print("No changes and no warnings; no email sent.")
         return 0
     if not cfg.get("to_email"):

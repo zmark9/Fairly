@@ -33,6 +33,7 @@
     "to_email": "m@zmark.net",
     "to_name": "Mark",
     "send_when_unchanged": false,
+    "scheduled_hour": 6,
     "attach_files": true,
     "attachments": ["upcoming_reservations.csv", "remotelock_*.csv"],
     "exports_url": "https://github.com/zmark9/Fairly/tree/exports"

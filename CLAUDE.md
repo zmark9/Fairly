@@ -33,6 +33,7 @@ Local run (Windows): `py -m pip install -r requirements.txt`, put `get_reservati
 
 **Email API notes** (`POST https://messaging.zmark.net/api/email/sendemailform`, test server `https://localhost:7075/api/email/sendemailform`):
 - `[FromForm] EmailToSend`, sent as multipart/form-data: `ToEmail`, `ToName`, `Subject`, `EmailBody` (HTML) and `Attachments`. The files are chosen by `email.attachments` in `config.json` (file names or globs; currently the combined `upcoming_reservations.csv` plus `remotelock_*.csv`).
+- When an email is sent: always on a manual run (**Run now**); on the scheduled run only if something changed or there's a warning. A run counts as manual when it starts outside `email.scheduled_hour` (local time, currently `6` = the 6 AM routine). **If you change the routine's schedule, update `scheduled_hour` too.**
 - Cloud routine network: the environment's network access must allow `messaging.zmark.net`, otherwise you get `Tunnel connection failed: 403`. CORS is irrelevant for server-to-server calls.
 - The application ID is fixed at 2 in the API, which also sets the From address (`GetAdminInfo`). Don't send From fields.
 - A `checkUserAgent` filter blocks script User-Agents (`python-urllib`, `python-requests`, `curl/`, `Headless`, ...). `notify.py` sends `FairlyReservationSync/1.0`; keep it that way.
