@@ -1,0 +1,19 @@
+# Guest data (PII): real exports and raw Fairly pulls never go in git
+*.csv
+data/
+output/
+raw/
+
+# Secrets
+.env
+.env.*
+*.local.json
+
+# Local Claude settings
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
