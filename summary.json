@@ -6,10 +6,7 @@
     "Big Sky Mountain Retreat | Ski-In/Ski-Out": 7,
     "Palms of Destin Condo w/ Lagoon Pool": 2
   },
-  "added": [
-    "Palms of Destin Condo w/ Lagoon Pool: 2026-12-26 to 2026-12-30, Christiana G.",
-    "Palms of Destin Condo w/ Lagoon Pool: 2027-01-11 to 2027-03-12, Mark Z."
-  ],
+  "added": [],
   "changed": [],
   "cancelled": [],
   "completed": [],
@@ -21,5 +18,5 @@
     "remotelock_big_sky.csv",
     "upcoming_reservations_destin.csv"
   ],
-  "has_changes": true
+  "has_changes": false
 }
