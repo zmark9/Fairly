@@ -23,8 +23,8 @@
   "email": {
     "enabled": true,
     "api_url": "https://messaging.zmark.net/api/email/sendemailform",
-    "to_email": "",
-    "to_name": "",
+    "to_email": "m@zmark.net",
+    "to_name": "Mark",
     "send_when_unchanged": false,
     "attach_files": true,
     "exports_url": "https://github.com/zmark9/Fairly/tree/exports"
