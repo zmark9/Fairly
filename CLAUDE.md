@@ -44,7 +44,7 @@ Local run (Windows): `py -m pip install -r requirements.txt`, put `get_reservati
 |---|---|---|---|---|
 | Papago Park Condo w/ Pool & Hot Tub | `m3C823iHokWV3CSBFjkFU` | Phoenix, AZ / America/Phoenix | Fairly-managed code | API |
 | Big Sky Mountain Retreat \| Ski-In/Ski-Out | `wDGU0odwZhMn_liZWCTHm` | Big Sky, MT / America/Denver | **None in Fairly → RemoteLock** | API + RemoteLock CSV |
-| Palms of Destin Condo w/ Lagoon Pool | `ZqH1txJqhcMDXvsIwmkrz` | Destin, FL | Building staff | Out of scope for now |
+| Palms of Destin Condo w/ Lagoon Pool | `ZqH1txJqhcMDXvsIwmkrz` | Destin, FL / America/Chicago | Building staff (front desk) | API (added Nov 11 2026). Caretaker is Amber Greenwood, so "Caretaker Payout" here is her money, not the owner's. |
 | Sedona View Retreat | `puCjP_PbkDflhxH-JmXLH` | Sedona, AZ | Not live | Out of scope |
 
 Keep home IDs in configuration, not hard-coded, so homes can be added or removed.
@@ -77,7 +77,7 @@ The unique key is the **Fairly reservation ID** (`ID`). Every write must be idem
 | Guest First Name | `GUEST_FIRST_NAME` | |
 | Last Initial | parsed from the "Reservation created" system message: `...confirmed reservation with <First> <I>.` | **Fragile**: depends on message text. Blank for owner-entered stays (no message). The owner's own stays use the owner's initial. |
 | Guest Type | `GUEST_TYPE` | Guest / Owner / Owner's guest |
-| Phone | `GUEST_PHONE_NUMBERS[0]` | Can be empty. Airbnb sometimes sends none. Re-check on every run, since it may arrive later. |
+| Phone | `GUEST_PHONE_NUMBERS[0]` | **Airbnb stopped sharing real guest phones in late Oct 2026** and now only gives a proxy number, so new Airbnb bookings arrive with no phone. Missing phones on Airbnb are expected (no warning); VRBO and direct bookings still have them. |
 | Email | n/a | **Not available from Fairly.** Kept as an empty column for compatibility. |
 | Channel | `CHANNEL_ID` | AIRBNB / VRBO / FAIRLY_DIRECT / FAIRLY_WEB (owner bookings) |
 | Confirmation | `EXTERNAL_ID` | Channel confirmation code. Empty for owner bookings. |
@@ -105,7 +105,8 @@ The unique key is the **Fairly reservation ID** (`ID`). Every write must be idem
 - Columns (RemoteLock import format): `name, email, department, start date, start time, end date, end time, pin`
   - `name` = `<First> <Last Initial>.` · `email` = empty (not available) · `department` = home title
   - `start date` / `start time` = check-in date, `16:00` · `end date` / `end time` = check-out date, `10:00` (formats `YYYY-MM-DD`, 24-hour `HH:mm`, confirmed OK)
-  - `pin` = **last 4 digits of the guest's phone**. If there's no phone (Airbnb sometimes sends none), leave it blank and flag it. Also flag two overlapping stays with the same PIN.
+  - `pin` = **last 4 digits of the guest's phone**. If there's no phone, leave it blank and flag it. Also flag two overlapping stays with the same PIN.
+  - **Airbnb impact:** new Big Sky Airbnb guests have no phone, so no PIN. Airbnb now provides a **"suggested door code"** (last 4 digits of the real guest phone). The Fairly MCP team offered to expose it. **TODO:** once exposed, use it as the PIN when there's no phone (field name TBD), and add a test.
 - File name: `remotelock_big_sky.csv`
 - **Import behavior:** RemoteLock ignores duplicate rows, so re-uploading the full list is safe. Not yet known: whether a changed row (new dates) updates the existing guest or adds a second one, and how cancellations get removed. That probably has to be manual or done through the RemoteLock API.
 - **Known issue:** RemoteLock has set schedules **1 day off** before. This is likely a time zone problem, where a date-only value is read as UTC midnight and then shifted to Mountain time. Check the time zone on the RemoteLock account and lock, and spot-check the first and last guest after each upload.

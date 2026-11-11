@@ -345,7 +345,9 @@ def find_warnings(records, config):
 
     for rec in records:
         label = f"{rec['Property']} {rec['Check-in']} {rec['Guest First Name']}"
-        if rec["Guest Type"] == "Guest" and not rec["Phone"]:
+        # Since late Oct 2026 Airbnb no longer shares guest phone numbers, so a
+        # missing phone is expected there and not worth a daily warning.
+        if rec["Guest Type"] == "Guest" and not rec["Phone"] and rec["Channel"] != "Airbnb":
             warnings.append(f"No phone number: {label} (message the guest via {rec['Message Thread Link'] or 'Fairly'})")
         if rec["_home_id"] in remotelock_homes and not pin_from_phone(rec["_phone_e164"]):
             warnings.append(f"No RemoteLock PIN (no phone): {label}")

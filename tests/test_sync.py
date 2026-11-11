@@ -136,9 +136,18 @@ class RemoteLockTests(unittest.TestCase):
                                "start date": "2026-12-01", "start time": "16:00",
                                "end date": "2026-12-05", "end time": "10:00", "pin": "0123"})
 
+    def test_airbnb_missing_phone_is_not_a_phone_warning(self):
+        recs = records_for(make_detail("air", home="home-a", phone=None, channel="AIRBNB"),
+                           make_detail("vrbo", home="home-a", phone=None, channel="VRBO",
+                                       check_in="2027-01-01", check_out="2027-01-05"))
+        warnings = sync.find_warnings(recs, CONFIG)
+        phone_warnings = [w for w in warnings if w.startswith("No phone number")]
+        self.assertEqual(len(phone_warnings), 1)
+        self.assertIn("2027-01-01", phone_warnings[0])  # only the VRBO stay
+
     def test_warnings(self):
         recs = records_for(
-            make_detail("nophone", phone=None),
+            make_detail("nophone", phone=None, channel="VRBO"),
             make_detail("p1", check_in="2027-01-01", check_out="2027-01-05", phone="+15555551111"),
             make_detail("p2", check_in="2027-01-03", check_out="2027-01-08", phone="+15555991111"),  # same last 4 as p1
         )

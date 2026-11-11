@@ -18,6 +18,13 @@
       "slug": "big_sky",
       "timezone": "America/Denver",
       "remotelock": true
+    },
+    {
+      "id": "ZqH1txJqhcMDXvsIwmkrz",
+      "name": "Palms of Destin Condo w/ Lagoon Pool",
+      "slug": "destin",
+      "timezone": "America/Chicago",
+      "remotelock": false
     }
   ],
   "email": {
