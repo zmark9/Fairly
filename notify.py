@@ -49,10 +49,12 @@ def build_subject(summary):
     return f"Fairly sync {summary['run_date']}: " + ", ".join(parts)
 
 
-def build_body(summary, remotelock_tables, exports_url):
+def build_body(summary, remotelock_tables, exports_url, note=""):
     """Simple HTML email: changes, warnings, then the RemoteLock rows as a table."""
     esc = html.escape
     out = [f"<h2>Fairly reservation sync - {esc(summary['run_date'])}</h2>"]
+    if note:
+        out.append(f'<p style="color:#b00020"><strong>{esc(note)}</strong></p>')
     per_home = ", ".join(f"{esc(home)}: {count}" for home, count in summary["per_home"].items())
     out.append(f"<p>{summary['total']} upcoming reservations ({per_home}).</p>")
 
@@ -121,6 +123,7 @@ def main(argv=None):
     parser.add_argument("--insecure", action="store_true", help="skip TLS checks (localhost only)")
     parser.add_argument("--dry-run", action="store_true", help="print the request instead of sending")
     parser.add_argument("--force", action="store_true", help="send even if nothing changed")
+    parser.add_argument("--note", default="", help="highlighted message at the top (e.g. push failure); forces a send")
     args = parser.parse_args(argv)
 
     cfg = json.loads(Path(args.config).read_text(encoding="utf-8-sig"))["email"]  # -sig: tolerate a BOM
@@ -130,7 +133,7 @@ def main(argv=None):
         print("Email disabled in config.json; skipping.")
         return 0
     if not summary["has_changes"] and not summary["warnings"] and not cfg.get("send_when_unchanged") \
-            and not args.force:
+            and not args.force and not args.note:
         print("No changes and no warnings; no email sent.")
         return 0
     if not cfg.get("to_email"):
@@ -144,7 +147,7 @@ def main(argv=None):
     url = api_url
 
     fields = email_fields(cfg, build_subject(summary),
-                          build_body(summary, load_remotelock_tables(args.out), cfg.get("exports_url")))
+                          build_body(summary, load_remotelock_tables(args.out), cfg.get("exports_url"), args.note))
     attachments = sorted(Path(args.out).glob("remotelock_*.csv")) if cfg.get("attach_files") else []
     request = multipart_request(url, fields, attachments)
 

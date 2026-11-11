@@ -28,17 +28,23 @@ python3 sync.py --raw raw --out output --previous "$WT"
 rm -f "$WT"/*.csv "$WT"/summary.json "$WT"/summary.md
 cp output/*.csv output/summary.json output/summary.md "$WT"/
 
-(
-  cd "$WT"
-  git add -A
-  if git diff --cached --quiet; then
-    echo "Exports unchanged; nothing to commit."
-  else
-    git -c user.name="Fairly Sync" -c user.email="fairly-sync@users.noreply.github.com" \
-      commit --quiet -m "Reservation export $(date -u +%Y-%m-%d)"
-    git push --quiet origin "$EXPORT_BRANCH"
+# A failed push must not block the email: record it and tell the reader instead.
+PUSH_NOTE=""
+cd "$WT"
+git add -A
+if git diff --cached --quiet; then
+  echo "Exports unchanged; nothing to commit."
+else
+  git -c user.name="Fairly Sync" -c user.email="fairly-sync@users.noreply.github.com" \
+    commit --quiet -m "Reservation export $(date -u +%Y-%m-%d)"
+  if PUSH_ERR=$(git push --quiet origin "$EXPORT_BRANCH" 2>&1); then
     echo "Pushed exports to $EXPORT_BRANCH."
+  else
+    echo "WARNING: push to $EXPORT_BRANCH failed: $PUSH_ERR" >&2
+    PUSH_NOTE="Exports were NOT pushed to GitHub (git push failed: $(echo "$PUSH_ERR" | tail -n 1)). The attached CSV is current; the GitHub exports branch is not."
   fi
-)
+fi
+cd ..
 
-python3 notify.py --out output
+python3 notify.py --out output --note "$PUSH_NOTE"
+[ -z "$PUSH_NOTE" ]   # exit non-zero if the push failed, so the run still reports it
