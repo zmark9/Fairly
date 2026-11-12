@@ -23,6 +23,7 @@ Target runtime: **Azure Function, timer trigger (cron)**.
 |---|---|
 | `config.json` | Homes in scope, owner ID, email settings |
 | `sync.py` | Raw Fairly JSON (`raw/`) → CSVs + `summary.json` (`output/`). All business rules live here. |
+| `reminders.py` | Ready-to-send guest messages for homes with a `parking` config (Big Sky): rotating gate code + snow-plow reminders. Included in `summary.json` and the email. |
 | `notify.py` | Emails `summary.json` and the RemoteLock rows through the messaging API |
 | `run_sync.sh` | Cloud entry point: exports branch worktree → `sync.py` → commit/push `exports` → `notify.py` |
 | `tests/test_sync.py` | Unit tests with made-up data: `py -m unittest discover -s tests` |
@@ -114,6 +115,18 @@ The unique key is the **Fairly reservation ID** (`ID`). Every write must be idem
 - **Known issue:** RemoteLock has set schedules **1 day off** before. This is likely a time zone problem, where a date-only value is read as UTC midnight and then shifted to Mountain time. Check the time zone on the RemoteLock account and lock, and spot-check the first and last guest after each upload.
 - Delivery: manual upload today. Later, the RemoteLock API could replace the CSV.
 - Cancellations and date changes after upload must be applied to RemoteLock too. Output a delta (new / changed / cancelled) or a full snapshot, depending on how RemoteLock imports.
+
+### 3. Guest parking messages (Big Sky)
+
+The Fairly MCP is **read-only** (checked Nov 11, 2026): it can't edit home directions or check-in text, and it can't message guests. Write access and the suggested door code were requested through the MCP's `report_outcome` feedback. As a workaround, `reminders.py` writes ready-to-send messages into the daily email, each with a link to the guest's thread. You copy and paste them.
+
+- **Schedule:** the gate code changes and the Huntley-Shoshone lot is plowed on the same Tuesday, every 14 days from `schedule_start` (2026-11-24; opening day is 11/25), at 9:00 AM. Plow (snow-removal) wording applies only between `snow_removal.season_start` and `season_end`.
+- **Codes:** `parking.gate_codes` in `config.json`, `{"YYYY-MM-DD": "code"}` keyed by change date. The HOA releases a season list; until then the values are `""`, so messages say `[GATE CODE TBD]` and the email warns you, but only when a message needs that code.
+- **Messages** (guests and owner's guests only, never the owner's own stays):
+  - **Arrival:** the day before check-in. Includes the code at arrival, plus any code change or plow day during the stay.
+  - **Change/plow:** the day before a change day, for every guest with `check_in < day <= check_out`. That includes a guest checking out that morning, whose car is still in the lot at 9 AM.
+- Any message triggers the email, even when no reservations changed.
+- The Big Sky **house manual in Fairly still lists the March–April 2026 codes and plow dates**. Remove them by hand in Fairly (Listings → house manual) and say the code is sent by message.
 
 ## Architecture (proposed)
 

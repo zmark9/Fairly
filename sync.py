@@ -33,6 +33,8 @@ try:
 except ImportError:  # pragma: no cover - Python < 3.9
     sys.exit("Python 3.9 or newer is required.")
 
+import reminders
+
 
 # ---------------------------------------------------------------------------
 # Constants: labels and column layouts
@@ -415,7 +417,7 @@ def short(rec):
     return f"{rec['Property']}: {rec['Check-in']} to {rec['Check-out']}, {name}"
 
 
-def write_outputs(out_dir, records, config, changes, warnings, today):
+def write_outputs(out_dir, records, config, changes, warnings, today, messages=()):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("*.csv"):
@@ -445,6 +447,7 @@ def write_outputs(out_dir, records, config, changes, warnings, today):
         "cancelled": [short(row) for row in changes["cancelled"]],
         "completed": [short(row) for row in changes["completed"]],
         "warnings": warnings,
+        "reminders": list(messages),
         "files": files,
         "has_changes": bool(changes["added"] or changes["changed"] or changes["cancelled"]),
     }
@@ -461,6 +464,13 @@ def summary_markdown(summary):
                        ("Completed", "completed"), ("Warnings", "warnings")]:
         if summary[key]:
             lines += ["", f"## {title}"] + [f"- {item}" for item in summary[key]]
+    if summary.get("reminders"):
+        lines += ["", "## Messages to send today"]
+        for rem in summary["reminders"]:
+            lines += ["", f"### {rem['type']}: {rem['guest']} ({rem['property']}, "
+                          f"{rem['check_in']} to {rem['check_out']})",
+                      f"Thread: {rem['thread_link'] or 'no Fairly thread (owner booking)'}", ""]
+            lines += [f"> {line}" if line else ">" for line in rem["message"].splitlines()]
     return "\n".join(lines) + "\n"
 
 
@@ -486,8 +496,10 @@ def main(argv=None):
 
     records = build_records(details, config, today)
     warnings = find_warnings(records, config)
+    messages, reminder_warnings = reminders.build_reminders(records, config, today)
+    warnings += reminder_warnings
     changes = diff(read_previous(args.previous), records, today)
-    summary = write_outputs(args.out, records, config, changes, warnings, today)
+    summary = write_outputs(args.out, records, config, changes, warnings, today, messages)
 
     print(summary_markdown(summary))
     return 0

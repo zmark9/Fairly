@@ -67,7 +67,25 @@ def build_subject(summary):
              f"{len(summary['cancelled'])} cancelled"]
     if summary["warnings"]:
         parts.append(f"{len(summary['warnings'])} warnings")
+    if summary.get("reminders"):
+        parts.insert(0, f"{len(summary['reminders'])} guest messages to send")
     return f"Fairly sync {summary['run_date']}: " + ", ".join(parts)
+
+
+def build_reminders_html(reminders):
+    """'Messages to send today': each message ready to copy, with a thread link."""
+    esc = html.escape
+    out = ["<h3>Messages to send today</h3>",
+           "<p>Copy each message and paste it into the guest's Fairly message thread.</p>"]
+    for rem in reminders:
+        link = (f'<a href="{esc(rem["thread_link"])}">Open message thread</a>' if rem["thread_link"]
+                else "No Fairly thread (owner booking): text the guest directly.")
+        out.append(
+            f"<p><strong>{esc(rem['type'])}</strong>: {esc(rem['guest'])}, {esc(rem['property'])} "
+            f"({esc(rem['check_in'])} to {esc(rem['check_out'])}). {link}</p>"
+            f'<pre style="white-space:pre-wrap;background:#f4f4f4;padding:8px;border-radius:4px">'
+            f"{esc(rem['message'])}</pre>")
+    return "\n".join(out)
 
 
 def build_body(summary, remotelock_tables, exports_url, note=""):
@@ -76,6 +94,8 @@ def build_body(summary, remotelock_tables, exports_url, note=""):
     out = [f"<h2>Fairly reservation sync - {esc(summary['run_date'])}</h2>"]
     if note:
         out.append(f'<p style="color:#b00020"><strong>{esc(note)}</strong></p>')
+    if summary.get("reminders"):
+        out.append(build_reminders_html(summary["reminders"]))
     per_home = ", ".join(f"{esc(home)}: {count}" for home, count in summary["per_home"].items())
     out.append(f"<p>{summary['total']} upcoming reservations ({per_home}).</p>")
 
@@ -159,7 +179,8 @@ def main(argv=None):
     manual = is_manual_run(now_local, cfg.get("scheduled_hour"))
     if manual:
         print(f"Manual run ({now_local:%H:%M} local is outside the scheduled hour); sending email.")
-    if not summary["has_changes"] and not summary["warnings"] and not cfg.get("send_when_unchanged") \
+    if not summary["has_changes"] and not summary["warnings"] and not summary.get("reminders") \
+            and not cfg.get("send_when_unchanged") \
             and not args.force and not args.note and not manual:
         print("No changes and no warnings; no email sent.")
         return 0

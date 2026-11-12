@@ -17,7 +17,34 @@
       "name": "Big Sky Mountain Retreat | Ski-In/Ski-Out",
       "slug": "big_sky",
       "timezone": "America/Denver",
-      "remotelock": true
+      "remotelock": true,
+      "parking": {
+        "lot_name": "Huntley-Shoshone parking lot",
+        "schedule_start": "2026-11-24",
+        "interval_days": 14,
+        "change_time": "9:00 AM",
+        "gate_codes": {
+          "2026-11-24": "",
+          "2026-12-08": "",
+          "2026-12-22": "",
+          "2027-01-05": "",
+          "2027-01-19": "",
+          "2027-02-02": "",
+          "2027-02-16": "",
+          "2027-03-02": "",
+          "2027-03-16": "",
+          "2027-03-30": "",
+          "2027-04-13": "",
+          "2027-04-27": ""
+        },
+        "snow_removal": {
+          "season_start": "2026-11-24",
+          "season_end": "2027-04-30",
+          "move_by": "9:00 AM",
+          "alternatives": "the Free Skier Lot, Rows A-C, or the Lone Peak Lot",
+          "alternatives_sentence": "The Free Skier Lot (Rows A-C) is the easiest alternative, or you can use the Lone Peak Lot."
+        }
+      }
     },
     {
       "id": "ZqH1txJqhcMDXvsIwmkrz",
