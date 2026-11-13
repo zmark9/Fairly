@@ -1,14 +1,12 @@
 {
-  "run_date": "2026-11-12",
+  "run_date": "2026-11-13",
   "total": 21,
   "per_home": {
     "Papago Park Condo w/ Pool & Hot Tub": 11,
     "Big Sky Mountain Retreat | Ski-In/Ski-Out": 7,
     "Palms of Destin Condo w/ Lagoon Pool": 3
   },
-  "added": [
-    "Palms of Destin Condo w/ Lagoon Pool: 2026-11-12 to 2026-11-13, Mark"
-  ],
+  "added": [],
   "changed": [],
   "cancelled": [],
   "completed": [],
@@ -21,5 +19,5 @@
     "remotelock_big_sky.csv",
     "upcoming_reservations_destin.csv"
   ],
-  "has_changes": true
+  "has_changes": false
 }
