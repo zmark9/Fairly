@@ -147,9 +147,23 @@ def format_phone(e164):
 
 
 def pin_from_phone(e164):
-    """RemoteLock PIN = last 4 digits of the guest's phone ('' if no phone)."""
+    """Last 4 digits of the guest's phone ('' if no phone)."""
     digits = digits_only(e164)
     return digits[-4:] if len(digits) >= 4 else ""
+
+
+def remotelock_pin(reservation):
+    """RemoteLock PIN: Airbnb's SUGGESTED_DOOR_CODE when present, else the last 4 of the phone.
+
+    Airbnb no longer shares real guest phones (late Oct 2026), but since 2026-10-20 it sends a
+    suggested door code (the last 4 of the real phone), which Fairly exposes. It wins over the
+    phone because an Airbnb phone may be a proxy number.
+    """
+    code = digits_only(reservation.get("SUGGESTED_DOOR_CODE"))
+    if code:
+        return code
+    phones = reservation.get("GUEST_PHONE_NUMBERS") or []
+    return pin_from_phone(phones[0]) if phones else ""
 
 
 def policy_label(code):
@@ -292,7 +306,7 @@ def build_record(detail, home, owner, today):
         "Message Thread Link": r.get("MESSAGE_THREAD_LINK") or "",
         "Notes": "; ".join(notes),
         # Not written to the reservation CSV; used for the RemoteLock file.
-        "_phone_e164": phones[0] if phones else "",
+        "_pin": remotelock_pin(r),
         "_start_time": _local_time(r.get("CHECK_IN_AT"), "16:00"),
         "_end_time": _local_time(r.get("CHECK_OUT_AT"), "10:00"),
     }
@@ -316,7 +330,7 @@ def remotelock_row(record):
         "start time": record["_start_time"],
         "end date": record["Check-out"],
         "end time": record["_end_time"],
-        "pin": pin_from_phone(record["_phone_e164"]),
+        "pin": record["_pin"],
     }
 
 
@@ -351,18 +365,18 @@ def find_warnings(records, config):
         # missing phone is expected there and not worth a daily warning.
         if rec["Guest Type"] == "Guest" and not rec["Phone"] and rec["Channel"] != "Airbnb":
             warnings.append(f"No phone number: {label} (message the guest via {rec['Message Thread Link'] or 'Fairly'})")
-        if rec["_home_id"] in remotelock_homes and not pin_from_phone(rec["_phone_e164"]):
-            warnings.append(f"No RemoteLock PIN (no phone): {label}")
+        if rec["_home_id"] in remotelock_homes and not rec["_pin"]:
+            warnings.append(f"No RemoteLock PIN (no phone or suggested door code): {label}")
         if rec["Guest Type"] == "Guest" and not rec["Last Initial"]:
             warnings.append(f"Last initial not found: {label}")
 
     # Two overlapping stays at the same RemoteLock home must not share a PIN.
     for home_id in remotelock_homes:
-        stays = [rec for rec in records if rec["_home_id"] == home_id and pin_from_phone(rec["_phone_e164"])]
+        stays = [rec for rec in records if rec["_home_id"] == home_id and rec["_pin"]]
         for i, a in enumerate(stays):
             for b in stays[i + 1:]:
                 overlaps = a["Check-in"] < b["Check-out"] and b["Check-in"] < a["Check-out"]
-                if overlaps and pin_from_phone(a["_phone_e164"]) == pin_from_phone(b["_phone_e164"]):
+                if overlaps and a["_pin"] == b["_pin"]:
                     warnings.append(
                         f"Duplicate PIN on overlapping stays: {a['Property']} "
                         f"{a['Check-in']} {a['Guest First Name']} / {b['Check-in']} {b['Guest First Name']}"

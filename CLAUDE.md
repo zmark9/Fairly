@@ -1,4 +1,8 @@
-# Fairly Reservation Sync
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Fairly Reservation Sync
 
 Automated pipeline that pulls upcoming reservations from Fairly for the owner's homes, normalizes them into one record shape, and delivers them to:
 
@@ -26,9 +30,16 @@ Target runtime: **Azure Function, timer trigger (cron)**.
 | `reminders.py` | Ready-to-send guest messages for homes with a `parking` config (Big Sky): rotating gate code + snow-plow reminders. Included in `summary.json` and the email. |
 | `notify.py` | Emails `summary.json` and the RemoteLock rows through the messaging API |
 | `run_sync.sh` | Cloud entry point: exports branch worktree → `sync.py` → commit/push `exports` → `notify.py` |
-| `tests/test_sync.py` | Unit tests with made-up data: `py -m unittest discover -s tests` |
+| `tests/` | `test_sync.py`, `test_reminders.py`, `test_notify.py`, all with made-up data |
 
-Local run (Windows): `py -m pip install -r requirements.txt`, put `get_reservation_by_id` JSON files in `raw/`, then `py sync.py --raw raw --out output`. Test the email with `py notify.py --out output --dry-run`, or against the local server with `--api-url https://localhost:7075/api/email/sendemailform --insecure --force`.
+**Data flow:** `sync.main` loads `raw/` → `build_records` (filter + normalize) → `find_warnings` → `reminders.build_reminders` → `diff` against `--previous` → `write_outputs` (CSVs + `summary.json`/`summary.md`). `notify.py` reads only `output/`, never `raw/`. Change detection today compares against the previous run's CSVs (the `exports` branch worktree in the cloud), not the owner DB. The code is stdlib only (`urllib` for HTTP); `requirements.txt` only adds `tzdata` on Windows.
+
+**Commands** (Windows `py`; the cloud routine uses `python3`):
+- Install: `py -m pip install -r requirements.txt`
+- All tests: `py -m unittest discover -s tests -v`
+- One file or test: `py -m unittest discover -s tests -p test_sync.py -k test_fields`
+- Transform: put `get_reservation_by_id` JSON files in `raw/`, then `py sync.py --raw raw --out output`. Add `--previous <dir>` to diff against an earlier output, and `--today YYYY-MM-DD` to pin the date (needed for reproducible reminder and in-progress checks).
+- Email: `py notify.py --out output --dry-run`, or against the local server with `--api-url https://localhost:7075/api/email/sendemailform --insecure --force`.
 
 **Exports branch:** `exports` is an orphan branch holding only the latest CSVs and summary, one commit per run that changed something. It contains guest PII and must stay in a private repo.
 
@@ -108,8 +119,8 @@ The unique key is the **Fairly reservation ID** (`ID`). Every write must be idem
 - Columns (RemoteLock import format): `name, email, department, start date, start time, end date, end time, pin`
   - `name` = `<First> <Last Initial>.` · `email` = empty (not available) · `department` = home title
   - `start date` / `start time` = check-in date, `16:00` · `end date` / `end time` = check-out date, `10:00` (formats `YYYY-MM-DD`, 24-hour `HH:mm`, confirmed OK)
-  - `pin` = **last 4 digits of the guest's phone**. If there's no phone, leave it blank and flag it. Also flag two overlapping stays with the same PIN.
-  - **Airbnb impact:** new Big Sky Airbnb guests have no phone, so no PIN. Airbnb now provides a **"suggested door code"** (last 4 digits of the real guest phone). The Fairly MCP team offered to expose it. **TODO:** once exposed, use it as the PIN when there's no phone (field name TBD), and add a test.
+  - `pin` = Airbnb's **`SUGGESTED_DOOR_CODE`** when present, otherwise the **last 4 digits of the guest's phone** (`sync.remotelock_pin`). If neither exists, leave it blank and flag it. Also flag two overlapping stays with the same PIN.
+  - **Airbnb impact:** Airbnb no longer shares real guest phones, but it sends a suggested door code (last 4 of the real phone), which Fairly exposes as `SUGGESTED_DOOR_CODE`. The code wins over the phone because an Airbnb phone may be a proxy number. It's null for non-Airbnb channels and for bookings created before 2026-10-20, which fall back to the phone.
 - File name: `remotelock_big_sky.csv`
 - **Import behavior:** RemoteLock ignores duplicate rows, so re-uploading the full list is safe. Not yet known: whether a changed row (new dates) updates the existing guest or adds a second one, and how cancellations get removed. That probably has to be manual or done through the RemoteLock API.
 - **Known issue:** RemoteLock has set schedules **1 day off** before. This is likely a time zone problem, where a date-only value is read as UTC midnight and then shifted to Mountain time. Check the time zone on the RemoteLock account and lock, and spot-check the first and last guest after each upload.

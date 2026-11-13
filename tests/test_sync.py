@@ -29,7 +29,7 @@ TODAY = date(2026, 11, 11)
 
 def make_detail(rid, home="home-b", check_in="2026-12-01", check_out="2026-12-05", status="CONFIRMED",
                 first="Testa", initial="Z", phone="+15555550123", guest_type="GUEST", channel="AIRBNB",
-                owner_due=1000.5, caretaker_due=(150, 40.25), offset="-0700"):
+                owner_due=1000.5, caretaker_due=(150, 40.25), offset="-0700", door_code=None):
     """Build a fake get_reservation_by_id result."""
     messages = []
     if initial is not None:
@@ -50,6 +50,7 @@ def make_detail(rid, home="home-b", check_in="2026-12-01", check_out="2026-12-05
             "BOOKED_AT": "2026-11-01 03:30:00.000 +0000",
             "CHECK_IN_AT": f"{check_in} 16:00:00.000 {offset}", "CHECK_OUT_AT": f"{check_out} 10:00:00.000 {offset}",
             "MESSAGE_THREAD_LINK": f"https://example.test/messages/{rid}",
+            "SUGGESTED_DOOR_CODE": door_code,
         },
         "conversation_messages": messages,
         "funds_distribution": funds,
@@ -136,6 +137,14 @@ class RemoteLockTests(unittest.TestCase):
                                "start date": "2026-12-01", "start time": "16:00",
                                "end date": "2026-12-05", "end time": "10:00", "pin": "0123"})
 
+    def test_suggested_door_code_is_the_pin(self):
+        no_phone = records_for(make_detail("r1", phone=None, door_code="4821"))[0]
+        self.assertEqual(sync.remotelock_row(no_phone)["pin"], "4821")
+        proxy_phone = records_for(make_detail("r2", phone="+15555550123", door_code="4821"))[0]
+        self.assertEqual(sync.remotelock_row(proxy_phone)["pin"], "4821")  # code beats phone
+        warnings = sync.find_warnings([no_phone], CONFIG)
+        self.assertFalse(any(w.startswith("No RemoteLock PIN") for w in warnings))
+
     def test_airbnb_missing_phone_is_not_a_phone_warning(self):
         recs = records_for(make_detail("air", home="home-a", phone=None, channel="AIRBNB"),
                            make_detail("vrbo", home="home-a", phone=None, channel="VRBO",
@@ -203,7 +212,7 @@ class EndToEndTest(unittest.TestCase):
             with (tmp / "run1" / "upcoming_reservations.csv").open(newline="", encoding="utf-8") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(len(rows), 2)
-            self.assertNotIn("_phone_e164", rows[0])  # internal fields stay out of the CSV
+            self.assertNotIn("_pin", rows[0])  # internal fields stay out of the CSV
 
             sync.main(args + ["--out", str(tmp / "run2"), "--previous", str(tmp / "run1")])
             summary = json.loads((tmp / "run2" / "summary.json").read_text(encoding="utf-8"))
