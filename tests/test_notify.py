@@ -52,6 +52,14 @@ class CleaningEmailTests(unittest.TestCase):
             self.assertEqual(to, owner)
             self.assertEqual(prefix, "[Test copy, not sent to Cleaner] ")
         self.assertIsNone(notify.cleaning_target({}, owner, False, True))
+        # Switched off: never the cleaner; manual runs still preview to the owner.
+        off = {**cleaner, "active": False}
+        self.assertIsNone(notify.cleaning_target(off, owner, False, True, force=True))
+        self.assertEqual(notify.cleaning_target(off, owner, True, False),
+                         (owner, "[Test copy, cleaning email is off] "))
+        placeholder = {"active": False, "to_email": "", "to_name": ""}
+        self.assertIsNone(notify.cleaning_target(placeholder, owner, False, True))
+        self.assertEqual(notify.cleaning_target(placeholder, owner, True, True)[0], owner)
 
     def test_subject_and_body(self):
         self.assertEqual(notify.build_cleaning_subject(self.REPORT, "2026-11-21"),

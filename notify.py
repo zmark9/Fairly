@@ -242,14 +242,14 @@ def main(argv=None):
         status |= send(api_url, fields, attachments, args, "Summary")
 
     # Cleaning-manager emails. Scheduled run: to the cleaner, only when that home has a new,
-    # changed or cancelled stay. Manual run ("Run now"): always, but to the owner (email.to_email)
-    # instead of the cleaner, so tests never reach him.
+    # changed or cancelled stay, and only if cleaning_notify.active. Manual run ("Run now"): always,
+    # but to the owner (email.to_email) instead of the cleaner, so tests never reach them.
     homes = {h["slug"]: h for h in config["homes"]}
     for report in summary.get("cleaning") or []:
         recipient = (homes.get(report["slug"]) or {}).get("cleaning_notify") or {}
         target = cleaning_target(recipient, cfg, manual, bool(report["changes"]), args.force)
         if target is None:
-            print(f"{report['property']}: no changes; no cleaning email sent.")
+            print(f"{report['property']}: no cleaning email (no changes, or switched off).")
             continue
         to, prefix = target
         fields = email_fields(to, prefix + build_cleaning_subject(report, summary["run_date"]),
@@ -261,14 +261,17 @@ def main(argv=None):
 def cleaning_target(recipient, owner_cfg, manual, has_changes, force=False):
     """Who gets a home's cleaning email: (address cfg, subject prefix), or None to skip.
 
-    Manual runs go to the owner, marked as a test copy, never to the cleaner."""
-    if not recipient.get("to_email"):
-        return None
+    cleaning_notify.active (default true) is the on/off switch for the cleaner.
+    Manual runs go to the owner as a test copy, never to the cleaner, even when the
+    home is switched off (so a new home can be previewed before going live)."""
+    active = recipient.get("active", True) and bool(recipient.get("to_email"))
     if manual:
         if not owner_cfg.get("to_email"):
             return None
-        return owner_cfg, f"[Test copy, not sent to {recipient.get('to_name') or recipient['to_email']}] "
-    if has_changes or force:
+        if active:
+            return owner_cfg, f"[Test copy, not sent to {recipient.get('to_name') or recipient['to_email']}] "
+        return owner_cfg, "[Test copy, cleaning email is off] "
+    if active and (has_changes or force):
         return recipient, ""
     return None
 

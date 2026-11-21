@@ -149,7 +149,12 @@ The Fairly MCP is **read-only** (checked Nov 11, 2026): it can't edit home direc
 
 ### 4. Cleaning manager email (Big Sky)
 
-A separate email for the cleaning manager (Mike Delao) about each home that has `cleaning_notify: {to_email, to_name}` in `config.json`. Live for Big Sky from the Nov 22, 2026 scheduled run.
+A separate email per home for that home's cleaning manager, configured by `cleaning_notify: {active, to_email, to_name}` on the home in `config.json`.
+
+- **On/off switch:** `active` (defaults to true if missing). Off means the cleaner never gets it; manual runs still send you a preview marked `[Test copy, cleaning email is off]`.
+- **Big Sky:** Mike Delao, live from the Nov 22, 2026 scheduled run.
+- **Papago Park, Destin:** placeholders, switched off with no recipient yet. To go live, fill in `to_email`/`to_name` and set `active: true`. For Destin the caretaker (Amber Greenwood) can allow early check-in or late check-out at her discretion, but the email uses the same standard times.
+- All homes use the same times (4 PM / 10 AM), so the times line in the email is shared.
 
 - **Scheduled run:** sent to the cleaner only when that home has a New, Changed or Cancelled stay (or `notify.py --force`).
 - **Manual run (Run now):** always sent, but to the owner (`email.to_email`) instead of the cleaner, with the subject prefixed `[Test copy, not sent to <name>]`. Tests never reach him (`notify.cleaning_target`).
