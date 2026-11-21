@@ -137,7 +137,10 @@ The unique key is the **Fairly reservation ID** (`ID`). Every write must be idem
 The Fairly MCP is **read-only** (checked Nov 11, 2026): it can't edit home directions or check-in text, and it can't message guests. Write access and the suggested door code were requested through the MCP's `report_outcome` feedback. As a workaround, `reminders.py` writes ready-to-send messages into the daily email, each with a link to the guest's thread. You copy and paste them.
 
 - **Schedule:** the gate code changes and the Huntley-Shoshone lot is plowed on the same Tuesday, every 14 days from `schedule_start` (2026-11-24; opening day is 11/25), at 9:00 AM. Plow (snow-removal) wording applies only between `snow_removal.season_start` and `season_end`.
-- **Codes:** `parking.gate_codes` in `config.json`, `{"YYYY-MM-DD": "code"}` keyed by change date. The HOA releases a season list; until then the values are `""`, so messages say `[GATE CODE TBD]` and the email warns you, but only when a message needs that code.
+- **Codes:** `parking.gate_codes` in `config.json`, `{"YYYY-MM-DD": "code"}` keyed by change date. A date with the value `""` means the code isn't known yet: messages say `[GATE CODE TBD]` and the email warns you, but only when a message needs that code.
+  - **2026–27 season loaded** (Nov 21, 2026): codes for every other Tuesday from 2026-11-24 through 2027-03-30, from the HOA list.
+  - **Plow-only days:** the plow schedule continues to 2027-04-13 and 2027-04-27 with no new code. Those dates are left **out** of `gate_codes` on purpose (not `""`), so `reminders.is_gate_change` treats them as plow-only: the message has snow-removal wording only and the last code stays in effect. The HOA may yet send April codes; if so, add them as normal entries.
+  - Only add a date to `gate_codes` if the code actually changes that day.
 - **Messages** (guests and owner's guests only, never the owner's own stays):
   - **Arrival:** the day before check-in. Includes the code at arrival, plus any code change or plow day during the stay.
   - **Change/plow:** the day before a change day, for every guest with `check_in < day <= check_out`. That includes a guest checking out that morning, whose car is still in the lot at 9 AM.
