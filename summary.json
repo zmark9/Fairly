@@ -25,6 +25,85 @@
   "reminders": [],
   "cleaning": [
     {
+      "slug": "papago_park",
+      "property": "Papago Park Condo w/ Pool & Hot Tub",
+      "changes": [],
+      "upcoming": [
+        {
+          "guest": "Mark Z. (Owner)",
+          "check_in": "2026-10-20",
+          "check_out": "2026-11-29",
+          "guests": ""
+        },
+        {
+          "guest": "Summer",
+          "check_in": "2026-12-04",
+          "check_out": "2026-12-07",
+          "guests": "1 adult"
+        },
+        {
+          "guest": "Sierra",
+          "check_in": "2026-12-12",
+          "check_out": "2026-12-18",
+          "guests": "4 adults"
+        },
+        {
+          "guest": "Mark B.",
+          "check_in": "2026-12-18",
+          "check_out": "2026-12-22",
+          "guests": "3 adults"
+        },
+        {
+          "guest": "Kevin S.",
+          "check_in": "2026-12-25",
+          "check_out": "2026-12-31",
+          "guests": "3 adults"
+        },
+        {
+          "guest": "Maxwell",
+          "check_in": "2026-12-31",
+          "check_out": "2027-01-05",
+          "guests": "4 adults"
+        },
+        {
+          "guest": "Mark Z. (Owner)",
+          "check_in": "2027-01-06",
+          "check_out": "2027-01-11",
+          "guests": ""
+        },
+        {
+          "guest": "Ashley (Owner's guest)",
+          "check_in": "2027-01-11",
+          "check_out": "2027-01-17",
+          "guests": ""
+        },
+        {
+          "guest": "Tawnya (Owner's guest)",
+          "check_in": "2027-01-18",
+          "check_out": "2027-01-22",
+          "guests": ""
+        },
+        {
+          "guest": "Ryan M.",
+          "check_in": "2027-02-06",
+          "check_out": "2027-02-22",
+          "guests": "3 (2 adults, 1 child)"
+        },
+        {
+          "guest": "Heidi",
+          "check_in": "2027-03-07",
+          "check_out": "2027-03-11",
+          "guests": "2 adults"
+        },
+        {
+          "guest": "Anthony",
+          "check_in": "2027-04-24",
+          "check_out": "2027-04-27",
+          "guests": "4 (2 adults, 2 children)"
+        }
+      ]
+    },
+    {
       "slug": "big_sky",
       "property": "Big Sky Mountain Retreat | Ski-In/Ski-Out",
       "changes": [],
@@ -70,6 +149,25 @@
           "check_in": "2027-03-26",
           "check_out": "2027-03-30",
           "guests": "4 (2 adults, 2 children)"
+        }
+      ]
+    },
+    {
+      "slug": "destin",
+      "property": "Palms of Destin Condo w/ Lagoon Pool",
+      "changes": [],
+      "upcoming": [
+        {
+          "guest": "Christiana",
+          "check_in": "2026-12-26",
+          "check_out": "2026-12-30",
+          "guests": "4 (2 adults, 2 children)"
+        },
+        {
+          "guest": "Mark Z. (Owner)",
+          "check_in": "2027-01-14",
+          "check_out": "2027-03-12",
+          "guests": ""
         }
       ]
     }
