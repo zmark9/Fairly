@@ -233,13 +233,14 @@ def main(argv=None):
         status |= send(api_url, fields, attachments, args, "Summary")
 
     # Cleaning-manager emails: only when that home has a new, changed or cancelled stay
-    # (or --force). Manual runs don't trigger them, so "Run now" won't re-notify the cleaner.
+    # (or --force). Manual runs don't trigger them, so "Run now" won't re-notify the cleaner,
+    # unless cleaning_notify.send_on_manual_run is true (for testing with your own address).
     homes = {h["slug"]: h for h in config["homes"]}
     for report in summary.get("cleaning") or []:
         recipient = (homes.get(report["slug"]) or {}).get("cleaning_notify") or {}
         if not recipient.get("to_email"):
             continue
-        if not report["changes"] and not args.force:
+        if not report["changes"] and not args.force and not (manual and recipient.get("send_on_manual_run")):
             print(f"{report['property']}: no changes; no cleaning email sent.")
             continue
         fields = email_fields(recipient, build_cleaning_subject(report, summary["run_date"]),

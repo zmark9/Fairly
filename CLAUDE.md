@@ -148,9 +148,9 @@ The Fairly MCP is **read-only** (checked Nov 11, 2026): it can't edit home direc
 
 A separate email for the cleaning manager (Mike) about each home that has `cleaning_notify: {to_email, to_name}` in `config.json`. **Currently pointed at the owner's address for testing**; switch `to_email`/`to_name` to Mike once approved.
 
-- **Sent only when that home has a New, Changed or Cancelled stay** (or `notify.py --force`). Manual runs don't trigger it, so **Run now** doesn't re-notify him.
+- **Sent only when that home has a New, Changed or Cancelled stay** (or `notify.py --force`). Manual runs don't trigger it, so **Run now** doesn't re-notify him. Exception: `cleaning_notify.send_on_manual_run: true` (on now, for testing) also sends it on manual runs. **Set it to false (or remove it) when switching to Mike.**
 - "Changed" means a change in check-in, check-out, guest name, guest type, adults or children (`sync.CLEANING_FIELDS`). A last initial being filled in is ignored.
-- Content: a "What changed" table (with the old dates or guest count), then all upcoming stays at that home. Name, dates and guest count only (owner stays are labelled and have no count). No phones, payouts, links or attachments.
+- Content: a "What changed" table (with the old dates or guest count), then always the full list of upcoming stays at that home. Name, dates and guest count only. Owner stays are included, labelled "(Owner)" / "(Owner's guest)"; Fairly has no guest count for the owner's own stays. No phones, payouts, links or attachments.
 - No changes are reported on a first run without a previous export, so he isn't sent every stay as "new".
 - Built by `sync.cleaning_report` into `summary.json["cleaning"]`; sent by `notify.py`.
 
