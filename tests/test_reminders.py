@@ -13,7 +13,9 @@ PARKING = {
     "schedule_start": "2026-11-24",           # Tuesday
     "interval_days": 14,
     "change_time": "9:00 AM",
-    "gate_codes": {"2026-11-24": "#1111", "2026-12-08": "#2222", "2026-12-22": ""},
+    # 2027-01-05 has no entry: plow-only day; the Dec 22 code stays in effect. 2027-05-11: out of season.
+    "gate_codes": {"2026-11-24": "#1111", "2026-12-08": "#2222", "2026-12-22": "", "2027-01-19": "#3333",
+                   "2027-05-11": "#5555"},
     "snow_removal": {
         "season_start": "2026-11-24", "season_end": "2027-04-30", "move_by": "9:00 AM",
         "alternatives": "Lot B", "alternatives_sentence": "Lot B is the easiest alternative.",
@@ -83,6 +85,28 @@ class BuildTests(unittest.TestCase):
         msgs, _ = reminders.build_reminders([rec("2027-05-08", "2027-05-14")], CONFIG, date(2027, 5, 10))
         self.assertEqual(msgs[0]["type"], "Gate code change tomorrow")
         self.assertNotIn("plowed", msgs[0]["message"])
+
+    def test_plow_only_day(self):
+        # Jan 5 has no gate_codes entry: plow reminder only, no code change, no warning.
+        msgs, warnings = reminders.build_reminders([rec("2027-01-02", "2027-01-08")], CONFIG, date(2027, 1, 4))
+        self.assertEqual(msgs[0]["type"], "Snow removal tomorrow")
+        self.assertIn("move your car", msgs[0]["message"])
+        self.assertNotIn("gate code", msgs[0]["message"])
+        self.assertEqual(warnings, [])
+        self.assertEqual(reminders.code_for(PARKING, date(2027, 1, 6)), (None, date(2026, 12, 22)))
+
+    def test_arrival_mentions_plow_only_day(self):
+        msgs, _ = reminders.build_reminders([rec("2027-01-17", "2027-01-20")], CONFIG, date(2027, 1, 16))
+        text = msgs[0]["message"]
+        self.assertIn("changes to #3333", text)  # Jan 19 gate change
+        msgs, _ = reminders.build_reminders([rec("2027-01-03", "2027-01-06")], CONFIG, date(2027, 1, 2))
+        text = msgs[0]["message"]
+        self.assertIn("On Tue Jan 5 the lot is plowed", text)
+        self.assertNotIn("changes to", text)
+
+    def test_unlisted_day_out_of_season_is_ignored(self):
+        msgs, _ = reminders.build_reminders([rec("2027-05-20", "2027-05-28")], CONFIG, date(2027, 5, 24))
+        self.assertEqual(msgs, [])
 
     def test_no_parking_config_no_messages(self):
         msgs, _ = reminders.build_reminders([rec("2026-12-05", "2026-12-10", home="condo")], CONFIG,
