@@ -61,7 +61,7 @@
       "timezone": "America/Chicago",
       "remotelock": false,
       "cleaning_notify": {
-        "active": false,
+        "active": true,
         "to_email": "thecoastalownerssociety@gmail.com",
         "to_name": "Amber Greenwood"
       }
