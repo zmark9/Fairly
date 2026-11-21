@@ -23,6 +23,57 @@
     "Last initial not found: Palms of Destin Condo w/ Lagoon Pool 2026-12-26 Christiana"
   ],
   "reminders": [],
+  "cleaning": [
+    {
+      "slug": "big_sky",
+      "property": "Big Sky Mountain Retreat | Ski-In/Ski-Out",
+      "changes": [],
+      "upcoming": [
+        {
+          "guest": "Pamela R.",
+          "check_in": "2026-12-28",
+          "check_out": "2027-01-02",
+          "guests": "4 (2 adults, 2 children)"
+        },
+        {
+          "guest": "Kimberly H.",
+          "check_in": "2027-02-04",
+          "check_out": "2027-02-11",
+          "guests": "4 adults"
+        },
+        {
+          "guest": "Adam",
+          "check_in": "2027-02-13",
+          "check_out": "2027-02-20",
+          "guests": "4 (2 adults, 2 children)"
+        },
+        {
+          "guest": "Don",
+          "check_in": "2027-02-20",
+          "check_out": "2027-02-26",
+          "guests": "3 (2 adults, 1 child)"
+        },
+        {
+          "guest": "Christine",
+          "check_in": "2027-03-07",
+          "check_out": "2027-03-13",
+          "guests": "4 adults"
+        },
+        {
+          "guest": "Shanna S.",
+          "check_in": "2027-03-13",
+          "check_out": "2027-03-17",
+          "guests": "4 (2 adults, 2 children)"
+        },
+        {
+          "guest": "Elaine",
+          "check_in": "2027-03-26",
+          "check_out": "2027-03-30",
+          "guests": "4 (2 adults, 2 children)"
+        }
+      ]
+    }
+  ],
   "files": [
     "upcoming_reservations.csv",
     "upcoming_reservations_papago_park.csv",
