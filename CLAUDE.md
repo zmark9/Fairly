@@ -146,9 +146,10 @@ The Fairly MCP is **read-only** (checked Nov 11, 2026): it can't edit home direc
 
 ### 4. Cleaning manager email (Big Sky)
 
-A separate email for the cleaning manager (Mike) about each home that has `cleaning_notify: {to_email, to_name}` in `config.json`. **Currently pointed at the owner's address for testing**; switch `to_email`/`to_name` to Mike once approved.
+A separate email for the cleaning manager (Mike Delao) about each home that has `cleaning_notify: {to_email, to_name}` in `config.json`. Live for Big Sky from the Nov 22, 2026 scheduled run.
 
-- **Sent only when that home has a New, Changed or Cancelled stay** (or `notify.py --force`). Manual runs don't trigger it, so **Run now** doesn't re-notify him. Exception: `cleaning_notify.send_on_manual_run: true` (on now, for testing) also sends it on manual runs. **Set it to false (or remove it) when switching to Mike.**
+- **Scheduled run:** sent to the cleaner only when that home has a New, Changed or Cancelled stay (or `notify.py --force`).
+- **Manual run (Run now):** always sent, but to the owner (`email.to_email`) instead of the cleaner, with the subject prefixed `[Test copy, not sent to <name>]`. Tests never reach him (`notify.cleaning_target`).
 - "Changed" means a change in check-in, check-out, guest name, guest type, adults or children (`sync.CLEANING_FIELDS`). A last initial being filled in is ignored.
 - Dates in this email are `m/d/yy` with no leading zeros (`3/7/27`), via `notify.us_date`; everything else stays `YYYY-MM-DD`.
 - Content: a "What changed" table (with the old dates or guest count), then always the full list of upcoming stays at that home. Name, dates and guest count only. Owner stays are included, labelled "(Owner)" / "(Owner's guest)"; Fairly has no guest count for the owner's own stays. No phones, payouts, links or attachments.

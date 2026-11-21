@@ -19,9 +19,8 @@
       "timezone": "America/Denver",
       "remotelock": true,
       "cleaning_notify": {
-        "to_email": "m@zmark.net",
-        "to_name": "Mark",
-        "send_on_manual_run": true
+        "to_email": "joshua.delao@yahoo.com",
+        "to_name": "Mike Delao"
       },
       "parking": {
         "lot_name": "Huntley-Shoshone parking lot",

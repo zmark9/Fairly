@@ -39,6 +39,20 @@ class CleaningEmailTests(unittest.TestCase):
         {"kind": "Cancelled", "guest": "Old <b>", "check_in": "2027-02-02", "check_out": "2027-02-05", "guests": ""}],
         "upcoming": [{"guest": "Testa Z.", "check_in": "2027-01-02", "check_out": "2027-01-05", "guests": "2 adults"}]}
 
+    def test_cleaning_target(self):
+        cleaner = {"to_email": "cleaner@example.test", "to_name": "Cleaner"}
+        owner = {"to_email": "owner@example.test"}
+        # Scheduled: the cleaner, only when something changed (or --force).
+        self.assertEqual(notify.cleaning_target(cleaner, owner, False, True), (cleaner, ""))
+        self.assertIsNone(notify.cleaning_target(cleaner, owner, False, False))
+        self.assertEqual(notify.cleaning_target(cleaner, owner, False, False, force=True), (cleaner, ""))
+        # Manual: always the owner, marked, never the cleaner.
+        for changed in (True, False):
+            to, prefix = notify.cleaning_target(cleaner, owner, True, changed)
+            self.assertEqual(to, owner)
+            self.assertEqual(prefix, "[Test copy, not sent to Cleaner] ")
+        self.assertIsNone(notify.cleaning_target({}, owner, False, True))
+
     def test_subject_and_body(self):
         self.assertEqual(notify.build_cleaning_subject(self.REPORT, "2026-11-21"),
                          "Mountain Cabin reservations 11/21/26: 1 new, 1 cancelled")

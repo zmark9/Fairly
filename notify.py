@@ -241,21 +241,36 @@ def main(argv=None):
         attachments = find_attachments(args.out, cfg) if cfg.get("attach_files") else []
         status |= send(api_url, fields, attachments, args, "Summary")
 
-    # Cleaning-manager emails: only when that home has a new, changed or cancelled stay
-    # (or --force). Manual runs don't trigger them, so "Run now" won't re-notify the cleaner,
-    # unless cleaning_notify.send_on_manual_run is true (for testing with your own address).
+    # Cleaning-manager emails. Scheduled run: to the cleaner, only when that home has a new,
+    # changed or cancelled stay. Manual run ("Run now"): always, but to the owner (email.to_email)
+    # instead of the cleaner, so tests never reach him.
     homes = {h["slug"]: h for h in config["homes"]}
     for report in summary.get("cleaning") or []:
         recipient = (homes.get(report["slug"]) or {}).get("cleaning_notify") or {}
-        if not recipient.get("to_email"):
-            continue
-        if not report["changes"] and not args.force and not (manual and recipient.get("send_on_manual_run")):
+        target = cleaning_target(recipient, cfg, manual, bool(report["changes"]), args.force)
+        if target is None:
             print(f"{report['property']}: no changes; no cleaning email sent.")
             continue
-        fields = email_fields(recipient, build_cleaning_subject(report, summary["run_date"]),
+        to, prefix = target
+        fields = email_fields(to, prefix + build_cleaning_subject(report, summary["run_date"]),
                               build_cleaning_body(report, summary["run_date"]))
         status |= send(api_url, fields, [], args, f"Cleaning ({report['property']})")
     return status
+
+
+def cleaning_target(recipient, owner_cfg, manual, has_changes, force=False):
+    """Who gets a home's cleaning email: (address cfg, subject prefix), or None to skip.
+
+    Manual runs go to the owner, marked as a test copy, never to the cleaner."""
+    if not recipient.get("to_email"):
+        return None
+    if manual:
+        if not owner_cfg.get("to_email"):
+            return None
+        return owner_cfg, f"[Test copy, not sent to {recipient.get('to_name') or recipient['to_email']}] "
+    if has_changes or force:
+        return recipient, ""
+    return None
 
 
 def send(url, fields, attachments, args, label):
