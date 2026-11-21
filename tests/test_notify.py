@@ -41,11 +41,18 @@ class CleaningEmailTests(unittest.TestCase):
 
     def test_subject_and_body(self):
         self.assertEqual(notify.build_cleaning_subject(self.REPORT, "2026-11-21"),
-                         "Mountain Cabin reservations 2026-11-21: 1 new, 1 cancelled")
+                         "Mountain Cabin reservations 11/21/26: 1 new, 1 cancelled")
         body = notify.build_cleaning_body(self.REPORT, "2026-11-21")
         self.assertIn("What changed", body)
         self.assertIn("Old &lt;b&gt;", body)   # escaped
         self.assertIn("All upcoming stays", body)
+        self.assertIn("<td>1/2/27</td>", body)
+        self.assertNotIn("2027-", body)
+
+    def test_us_date(self):
+        self.assertEqual(notify.us_date("2027-03-07"), "3/7/27")
+        self.assertEqual(notify.us_date("dates were 2026-12-28 to 2027-01-02"), "dates were 12/28/26 to 1/2/27")
+        self.assertEqual(notify.us_date("2 adults"), "2 adults")
 
 
 if __name__ == "__main__":

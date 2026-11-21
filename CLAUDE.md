@@ -150,6 +150,7 @@ A separate email for the cleaning manager (Mike) about each home that has `clean
 
 - **Sent only when that home has a New, Changed or Cancelled stay** (or `notify.py --force`). Manual runs don't trigger it, so **Run now** doesn't re-notify him. Exception: `cleaning_notify.send_on_manual_run: true` (on now, for testing) also sends it on manual runs. **Set it to false (or remove it) when switching to Mike.**
 - "Changed" means a change in check-in, check-out, guest name, guest type, adults or children (`sync.CLEANING_FIELDS`). A last initial being filled in is ignored.
+- Dates in this email are `m/d/yy` with no leading zeros (`3/7/27`), via `notify.us_date`; everything else stays `YYYY-MM-DD`.
 - Content: a "What changed" table (with the old dates or guest count), then always the full list of upcoming stays at that home. Name, dates and guest count only. Owner stays are included, labelled "(Owner)" / "(Owner's guest)"; Fairly has no guest count for the owner's own stays. No phones, payouts, links or attachments.
 - No changes are reported on a first run without a previous export, so he isn't sent every stay as "new".
 - Built by `sync.cleaning_report` into `summary.json["cleaning"]`; sent by `notify.py`.

@@ -23,6 +23,7 @@ import argparse
 import csv
 import html
 import json
+import re
 import ssl
 import sys
 import uuid
@@ -126,22 +127,30 @@ def build_body(summary, remotelock_tables, exports_url, note=""):
     return "\n".join(out)
 
 
+ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
+
+
+def us_date(text):
+    """Every YYYY-MM-DD in text -> m/d/yy without leading zeros ('2027-03-07' -> '3/7/27')."""
+    return ISO_DATE.sub(lambda m: f"{int(m[2])}/{int(m[3])}/{m[1][2:]}", str(text))
+
+
 def build_cleaning_subject(report, run_date):
     counts = {k: sum(c["kind"] == k for c in report["changes"]) for k in ("New", "Changed", "Cancelled")}
     parts = [f"{n} {k.lower()}" for k, n in counts.items() if n] or ["no changes"]
-    return f"{report['property']} reservations {run_date}: " + ", ".join(parts)
+    return f"{report['property']} reservations {us_date(run_date)}: " + ", ".join(parts)
 
 
 def build_cleaning_body(report, run_date):
     """Short email for a cleaning manager: changes first, then the full upcoming schedule.
-    Only name, dates and guest counts: no phones, payouts or links."""
+    Only name, dates and guest counts: no phones, payouts or links. Dates as m/d/yy."""
     esc = html.escape
     table = '<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse">'
 
     def row(cells, tag="td"):
-        return "<tr>" + "".join(f"<{tag}>{esc(str(c))}</{tag}>" for c in cells) + "</tr>"
+        return "<tr>" + "".join(f"<{tag}>{esc(us_date(c))}</{tag}>" for c in cells) + "</tr>"
 
-    out = [f"<h2>{esc(report['property'])}</h2>", f"<p>Reservation update, {esc(run_date)}.</p>"]
+    out = [f"<h2>{esc(report['property'])}</h2>", f"<p>Reservation update, {esc(us_date(run_date))}.</p>"]
     if report["changes"]:
         out += ["<h3>What changed</h3>", table,
                 row(["", "Guest", "Check-in", "Check-out", "Guests", "Before"], "th")]
