@@ -38,7 +38,7 @@ Target runtime: **Azure Function, timer trigger (cron)**.
 - Install: `py -m pip install -r requirements.txt`
 - All tests: `py -m unittest discover -s tests -v`
 - One file or test: `py -m unittest discover -s tests -p test_sync.py -k test_fields`
-- Transform: put `get_reservation_by_id` JSON files in `raw/`, then `py sync.py --raw raw --out output`. Add `--previous <dir>` to diff against an earlier output, and `--today YYYY-MM-DD` to pin the date (needed for reproducible reminder and in-progress checks).
+- Transform: put the raw Fairly JSON in `raw/` (`<ID>.json`, `<ID>.finances.json`, `<ID>.conversations.json`; see Data source), then `py sync.py --raw raw --out output`. Add `--previous <dir>` to diff against an earlier output, and `--today YYYY-MM-DD` to pin the date (needed for reproducible reminder and in-progress checks).
 - Email: `py notify.py --out output --dry-run`, or against the local server with `--api-url https://localhost:7075/api/email/sendemailform --insecure --force`.
 
 **Exports branch:** `exports` is an orphan branch holding only the latest CSVs and summary, one commit per run that changed something. It contains guest PII and must stay in a private repo.
@@ -47,7 +47,7 @@ Target runtime: **Azure Function, timer trigger (cron)**.
 - `[FromForm] EmailToSend`, sent as multipart/form-data: `ToEmail`, `ToName`, `Subject`, `EmailBody` (HTML) and `Attachments`. The files are chosen by `email.attachments` in `config.json` (file names or globs; currently the combined `upcoming_reservations.csv` plus `remotelock_*.csv`).
 - When an email is sent: always on a manual run (**Run now**); on the scheduled run only if something changed or there's a warning. A run counts as manual when it starts outside `email.scheduled_hour` (local time, currently `6` = the 6 AM routine). **If you change the routine's schedule, update `scheduled_hour` too.**
 - Cloud routine network: the environment's network access must allow `messaging.zmark.net`, otherwise you get `Tunnel connection failed: 403`. CORS is irrelevant for server-to-server calls.
-- The application ID is fixed at 2 in the API, which also sets the From address (`GetAdminInfo`). Don't send From fields.
+- The application ID is fixed at 1 in the API (`EmailController.SendEmail` in `C:\Source\Active\Message\API-Messaging`; changed from 2 on Nov 21 2026), which also sets the From address (`GetAdminInfo`). Don't send From fields.
 - A `checkUserAgent` filter blocks script User-Agents (`python-urllib`, `python-requests`, `curl/`, `Headless`, ...). `notify.py` sends `FairlyReservationSync/1.0`; keep it that way.
 - Auth: none for now (shelved). It uses the `PublicForm` rate limit.
 - The old `sendemail` ([FromBody]) action is still used elsewhere. Don't change it.
@@ -65,10 +65,15 @@ Keep home IDs in configuration, not hard-coded, so homes can be added or removed
 
 ## Data source: Fairly
 
-Accessed today through the **Fairly MCP server** (tools: `search_reservations`, `get_reservation_by_id`, `search_homes`, `whoami`). Results are scoped to homes the authenticated user is on.
+Accessed today through the **Fairly MCP server** (tools: `search_reservations`, `get_reservation_by_id`, `get_reservation_finances`, `get_conversations`, `search_homes`, `whoami`). Results are scoped to homes the authenticated user is on.
 
 - `search_reservations(home_id, date_range_start=today)` returns every reservation whose stay overlaps today or later, newest check-in first, 50 per page (`nextCursor` for more).
-- `get_reservation_by_id(id)` returns the reservation plus line items, funds distribution, payouts and conversation messages. Responses are large (75–120 KB each).
+- **Split since ~Nov 19–21, 2026.** Each reservation now takes three calls, saved to `raw/` and merged by `sync.load_details`:
+  - `get_reservation_by_id(id)` → `raw/<ID>.json`: the reservation (plus snapshot and alterations). No money and no messages any more.
+  - `get_reservation_finances(id)` → `raw/<ID>.finances.json`: `funds_distribution`, `line_items`, `payouts`. Only active distribution rows; `DELETED_AT` is no longer present.
+  - `get_conversations(reservation_id)` → `raw/<ID>.conversations.json`: `conversation_messages`, oldest first (only the newest come back if `truncated`).
+  - A reservation with no finance file gets a "No finance data" warning instead of silently showing $0.
+  - The scheduled routine's prompt must fetch all three. It stopped safely on 11/21 when only the first one existed.
 
 ### Filtering rules
 
@@ -89,7 +94,7 @@ The unique key is the **Fairly reservation ID** (`ID`). Every write must be idem
 | Check-out | `CHECK_OUT` | Date. Time comes from `CHECK_OUT_AT` (normally 10 AM). |
 | Nights | derived | `CHECK_OUT - CHECK_IN` |
 | Guest First Name | `GUEST_FIRST_NAME` | |
-| Last Initial | parsed from the "Reservation created" system message: `...confirmed reservation with <First> <I>.` | **Fragile**: depends on message text. Blank for owner-entered stays (no message). The owner's own stays use the owner's initial. |
+| Last Initial | Old source: the "Reservation created" system message (`...confirmed reservation with <First> <I>.`), which `get_conversations` now returns as just `Reservation created`. Fallback: the `MESSAGE_AUTHOR` of a message the guest wrote (`<First> <Last>`, skipping Fairly/system and the owner's messages). | **Blank until the guest sends a message**, so expect "Last initial not found" warnings for new bookings. The owner's own stays use the owner's initial. |
 | Guest Type | `GUEST_TYPE` | Guest / Owner / Owner's guest |
 | Phone | `GUEST_PHONE_NUMBERS[0]` | **Airbnb stopped sharing real guest phones in late Oct 2026** and now only gives a proxy number, so new Airbnb bookings arrive with no phone. Missing phones on Airbnb are expected (no warning); VRBO and direct bookings still have them. |
 | Email | n/a | **Not available from Fairly.** Kept as an empty column for compatibility. |
@@ -98,7 +103,7 @@ The unique key is the **Fairly reservation ID** (`ID`). Every write must be idem
 | Adults / Children | `GUEST_NUMBER_ADULTS` / `_CHILDREN` | Null for owner bookings |
 | Pets | `GUEST_NUMBER_PETS` | |
 | Booked On | `BOOKED_AT` | UTC; convert to the home's TZ |
-| Owner Payout | `get_reservation_by_id` → `funds_distribution`: sum `AMOUNT_DUE` where `DELETED_AT` is null, `USER_ID` = owner, `ROLE = OWNER`, reason `REVENUE_SHARE_RENT` | Expected net payout; Fairly recalculates it live until paid out (KB article 84). $0 for owner stays. Do **not** use `PRICES`, which is the gross advertised price. |
+| Owner Payout | `get_reservation_finances` → `funds_distribution`: sum `AMOUNT_DUE` where `DELETED_AT` is null, `USER_ID` = owner, `ROLE = OWNER`, reason `REVENUE_SHARE_RENT` | Expected net payout; Fairly recalculates it live until paid out (KB article 84). $0 for owner stays. Do **not** use `PRICES`, which is the gross advertised price. |
 | Caretaker Payout | same table, `ROLE = CARETAKER` (`CLEANING_LABOR` + `REVENUE_SHARE_RENT`) | The owner is also the caretaker on Papago and Big Sky, so this money goes to them too. |
 | Cancellation Policy | `CANCELLATION_POLICY` | |
 | Message Thread Link | `MESSAGE_THREAD_LINK` | Null for owner bookings |

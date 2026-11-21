@@ -202,8 +202,16 @@ def _unwrap(data):
 
 
 def load_details(raw_dir):
-    """Read every reservation-detail JSON file under raw_dir, keyed by reservation ID."""
-    details = {}
+    """Read the raw Fairly JSON under raw_dir into one detail dict per reservation ID.
+
+    Since Nov 2026 the Fairly MCP splits a reservation across three tools, saved as:
+      <ID>.json               get_reservation_by_id     -> "reservation"
+      <ID>.finances.json      get_reservation_finances  -> "funds_distribution", "payouts", ...
+      <ID>.conversations.json get_conversations         -> "conversation_messages"
+    The extra files are merged into the reservation's detail. Older combined files
+    (everything in get_reservation_by_id) still load as before.
+    """
+    details, extras = {}, []
     for path in sorted(Path(raw_dir).rglob("*")):
         if not path.is_file():
             continue
@@ -212,8 +220,23 @@ def load_details(raw_dir):
         except (json.JSONDecodeError, UnicodeDecodeError):
             print(f"  skipped (not JSON): {path}", file=sys.stderr)
             continue
-        if isinstance(data, dict) and isinstance(data.get("reservation"), dict):
+        if not isinstance(data, dict):
+            continue
+        if isinstance(data.get("reservation"), dict):
             details[data["reservation"]["ID"]] = data
+        elif "funds_distribution" in data or "conversation_messages" in data:
+            extras.append((path, data))
+
+    for path, data in extras:
+        rid = data.get("reservation_id")
+        if not rid and data.get("conversations"):
+            rid = data["conversations"][0].get("RESERVATION_ID")
+        rid = rid or path.name.split(".")[0]
+        if rid not in details:
+            continue
+        for key, value in data.items():
+            if key != "data_definitions":
+                details[rid].setdefault(key, value)
     return details
 
 
@@ -230,14 +253,37 @@ def is_upcoming(reservation, today):
 
 
 def last_initial(detail, owner):
-    """Fairly only stores a first name; the last initial appears in the
-    automatic 'Reservation created' message ('...reservation with Sierra P.')."""
+    """Fairly only stores a first name. The last initial comes from, in order:
+    1. the old 'Reservation created' message text ('...reservation with Sierra P.'),
+       which get_conversations stopped returning in Nov 2026 (now just 'Reservation created');
+    2. the author name on a message the guest wrote ('Sierra Parker'), so it is
+       blank until the guest has sent a message."""
     reservation = detail["reservation"]
     if reservation.get("GUEST_TYPE") == "OWNER":
         return owner.get("last_initial", "")
 
     first = (reservation.get("GUEST_FIRST_NAME") or "").strip()
-    for message in detail.get("conversation_messages") or []:
+    messages = detail.get("conversation_messages") or []
+    return _initial_from_created_message(messages, first) or _initial_from_author(messages, first, owner)
+
+
+def _initial_from_author(messages, first, owner):
+    if not first:
+        return ""
+    for message in messages:
+        if owner.get("user_id") and message.get("FAIRLY_USER_ID") == owner["user_id"]:
+            continue
+        author = (message.get("MESSAGE_AUTHOR") or "").strip()
+        if author.lower() in ("fairly", "fairly system") or not author.lower().startswith(first.lower() + " "):
+            continue
+        rest = author[len(first):].split()
+        if rest:
+            return rest[-1][:1].upper()
+    return ""
+
+
+def _initial_from_created_message(messages, first):
+    for message in messages:
         match = CREATED_MESSAGE.search(message.get("MESSAGE_BODY") or "")
         if not match:
             continue
@@ -307,6 +353,7 @@ def build_record(detail, home, owner, today):
         "Notes": "; ".join(notes),
         # Not written to the reservation CSV; used for the RemoteLock file.
         "_pin": remotelock_pin(r),
+        "_has_finances": "funds_distribution" in detail,
         "_start_time": _local_time(r.get("CHECK_IN_AT"), "16:00"),
         "_end_time": _local_time(r.get("CHECK_OUT_AT"), "10:00"),
     }
@@ -367,6 +414,8 @@ def find_warnings(records, config):
             warnings.append(f"No phone number: {label} (message the guest via {rec['Message Thread Link'] or 'Fairly'})")
         if rec["_home_id"] in remotelock_homes and not rec["_pin"]:
             warnings.append(f"No RemoteLock PIN (no phone or suggested door code): {label}")
+        if not rec["_has_finances"]:
+            warnings.append(f"No finance data (payouts show $0): {label}")
         if rec["Guest Type"] == "Guest" and not rec["Last Initial"]:
             warnings.append(f"Last initial not found: {label}")
 

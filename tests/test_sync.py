@@ -166,6 +166,47 @@ class RemoteLockTests(unittest.TestCase):
         self.assertTrue(any(w.startswith("Duplicate PIN") for w in warnings))
 
 
+class SplitToolTests(unittest.TestCase):
+    """Nov 2026: Fairly split get_reservation_by_id into three tools / three files."""
+
+    def write_split(self, folder, detail):
+        rid = detail["reservation"]["ID"]
+        (folder / f"{rid}.json").write_text(json.dumps({"reservation": detail["reservation"]}), encoding="utf-8")
+        (folder / f"{rid}.finances.json").write_text(json.dumps(
+            {"reservation_id": rid, "funds_distribution": detail["funds_distribution"], "data_definitions": []}),
+            encoding="utf-8")
+        (folder / f"{rid}.conversations.json").write_text(json.dumps(
+            {"conversations": [{"RESERVATION_ID": rid}], "conversation_messages": detail["conversation_messages"]}),
+            encoding="utf-8")
+
+    def test_split_files_are_merged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.write_split(Path(tmp), make_detail("r1"))
+            details = sync.load_details(tmp)
+        self.assertEqual(list(details), ["r1"])
+        self.assertNotIn("data_definitions", details["r1"])
+        rec = sync.build_records(details, CONFIG, TODAY)[0]
+        self.assertEqual(rec["Owner Payout"], "1000.50")
+        self.assertEqual(rec["Last Initial"], "Z")
+        self.assertFalse(any(w.startswith("No finance data") for w in sync.find_warnings([rec], CONFIG)))
+
+    def test_missing_finances_warns(self):
+        detail = make_detail("r1")
+        del detail["funds_distribution"]
+        warnings = sync.find_warnings(records_for(detail), CONFIG)
+        self.assertTrue(any(w.startswith("No finance data") for w in warnings))
+
+    def test_initial_from_guest_message_author(self):
+        detail = make_detail("r1", first="Testa", initial=None)
+        detail["conversation_messages"] = [
+            {"MESSAGE_AUTHOR": "fairly system", "MESSAGE_BODY": "Reservation created"},
+            {"MESSAGE_AUTHOR": "Testa Owner", "FAIRLY_USER_ID": OWNER_ID, "MESSAGE_BODY": "hi"},  # owner, skipped
+            {"MESSAGE_AUTHOR": "Testarossa Y", "MESSAGE_BODY": "hi"},                            # not a word match
+            {"MESSAGE_AUTHOR": "Testa van Example", "MESSAGE_BODY": "hello"},
+        ]
+        self.assertEqual(records_for(detail)[0]["Last Initial"], "E")
+
+
 class DiffTests(unittest.TestCase):
     def test_added_changed_cancelled_completed(self):
         previous = [
