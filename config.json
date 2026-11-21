@@ -18,6 +18,10 @@
       "slug": "big_sky",
       "timezone": "America/Denver",
       "remotelock": true,
+      "cleaning_notify": {
+        "to_email": "m@zmark.net",
+        "to_name": "Mark"
+      },
       "parking": {
         "lot_name": "Huntley-Shoshone parking lot",
         "schedule_start": "2026-11-24",

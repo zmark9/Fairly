@@ -126,6 +126,41 @@ def build_body(summary, remotelock_tables, exports_url, note=""):
     return "\n".join(out)
 
 
+def build_cleaning_subject(report, run_date):
+    counts = {k: sum(c["kind"] == k for c in report["changes"]) for k in ("New", "Changed", "Cancelled")}
+    parts = [f"{n} {k.lower()}" for k, n in counts.items() if n] or ["no changes"]
+    return f"{report['property']} reservations {run_date}: " + ", ".join(parts)
+
+
+def build_cleaning_body(report, run_date):
+    """Short email for a cleaning manager: changes first, then the full upcoming schedule.
+    Only name, dates and guest counts: no phones, payouts or links."""
+    esc = html.escape
+    table = '<table border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse">'
+
+    def row(cells, tag="td"):
+        return "<tr>" + "".join(f"<{tag}>{esc(str(c))}</{tag}>" for c in cells) + "</tr>"
+
+    out = [f"<h2>{esc(report['property'])}</h2>", f"<p>Reservation update, {esc(run_date)}.</p>"]
+    if report["changes"]:
+        out += ["<h3>What changed</h3>", table,
+                row(["", "Guest", "Check-in", "Check-out", "Guests", "Before"], "th")]
+        out += [row([c["kind"], c["guest"], c["check_in"], c["check_out"], c["guests"] or "-",
+                     c.get("was", "")]) for c in report["changes"]]
+        out.append("</table>")
+    else:
+        out.append("<p>No changes since the last update.</p>")
+    out += ["<h3>All upcoming stays</h3>"]
+    if report["upcoming"]:
+        out += [table, row(["Guest", "Check-in", "Check-out", "Guests"], "th")]
+        out += [row([u["guest"], u["check_in"], u["check_out"], u["guests"] or "-"]) for u in report["upcoming"]]
+        out.append("</table>")
+    else:
+        out.append("<p>None.</p>")
+    out.append("<p>Check-in is 4:00 PM and check-out is 10:00 AM unless noted.</p>")
+    return "\n".join(out)
+
+
 USER_AGENT = "FairlyReservationSync/1.0"
 
 
@@ -163,7 +198,8 @@ def main(argv=None):
     parser.add_argument("--api-url", help="override email.api_url from config.json")
     parser.add_argument("--insecure", action="store_true", help="skip TLS checks (localhost only)")
     parser.add_argument("--dry-run", action="store_true", help="print the request instead of sending")
-    parser.add_argument("--force", action="store_true", help="send even if nothing changed")
+    parser.add_argument("--force", action="store_true",
+                        help="send the summary and every cleaning email even if nothing changed")
     parser.add_argument("--note", default="", help="highlighted message at the top (e.g. push failure); forces a send")
     args = parser.parse_args(argv)
 
@@ -175,50 +211,64 @@ def main(argv=None):
         print("Email disabled in config.json; skipping.")
         return 0
 
-    now_local = datetime.now(ZoneInfo(config.get("timezone", "America/Phoenix")))
-    manual = is_manual_run(now_local, cfg.get("scheduled_hour"))
-    if manual:
-        print(f"Manual run ({now_local:%H:%M} local is outside the scheduled hour); sending email.")
-    if not summary["has_changes"] and not summary["warnings"] and not summary.get("reminders") \
-            and not cfg.get("send_when_unchanged") \
-            and not args.force and not args.note and not manual:
-        print("No changes and no warnings; no email sent.")
-        return 0
-    if not cfg.get("to_email"):
-        print("WARNING: email.to_email is empty in config.json; no email sent.", file=sys.stderr)
-        return 0
-
     api_url = args.api_url or cfg["api_url"]
     host = urllib.parse.urlparse(api_url).hostname
     if args.insecure and host not in ("localhost", "127.0.0.1"):
         sys.exit("--insecure is only allowed for localhost.")
-    url = api_url
 
-    fields = email_fields(cfg, build_subject(summary),
-                          build_body(summary, load_remotelock_tables(args.out), cfg.get("exports_url"), args.note))
-    attachments = find_attachments(args.out, cfg) if cfg.get("attach_files") else []
+    status = 0
+    now_local = datetime.now(ZoneInfo(config.get("timezone", "America/Phoenix")))
+    manual = is_manual_run(now_local, cfg.get("scheduled_hour"))
+    if manual:
+        print(f"Manual run ({now_local:%H:%M} local is outside the scheduled hour); sending email.")
+    if not summary["has_changes"] and not summary["warnings"] and not summary.get("reminders")             and not cfg.get("send_when_unchanged")             and not args.force and not args.note and not manual:
+        print("No changes and no warnings; no summary email sent.")
+    elif not cfg.get("to_email"):
+        print("WARNING: email.to_email is empty in config.json; no email sent.", file=sys.stderr)
+    else:
+        fields = email_fields(cfg, build_subject(summary),
+                              build_body(summary, load_remotelock_tables(args.out), cfg.get("exports_url"),
+                                         args.note))
+        attachments = find_attachments(args.out, cfg) if cfg.get("attach_files") else []
+        status |= send(api_url, fields, attachments, args, "Summary")
+
+    # Cleaning-manager emails: only when that home has a new, changed or cancelled stay
+    # (or --force). Manual runs don't trigger them, so "Run now" won't re-notify the cleaner.
+    homes = {h["slug"]: h for h in config["homes"]}
+    for report in summary.get("cleaning") or []:
+        recipient = (homes.get(report["slug"]) or {}).get("cleaning_notify") or {}
+        if not recipient.get("to_email"):
+            continue
+        if not report["changes"] and not args.force:
+            print(f"{report['property']}: no changes; no cleaning email sent.")
+            continue
+        fields = email_fields(recipient, build_cleaning_subject(report, summary["run_date"]),
+                              build_cleaning_body(report, summary["run_date"]))
+        status |= send(api_url, fields, [], args, f"Cleaning ({report['property']})")
+    return status
+
+
+def send(url, fields, attachments, args, label):
+    """POST one email (or print it with --dry-run). Returns 0 on success, 1 on failure."""
     request = multipart_request(url, fields, attachments)
-
     if args.dry_run:
-        print(f"POST {url}\nContent-Type: {request.get_header('Content-type')}\n"
-              f"User-Agent: {request.get_header('User-agent')}\n")
+        print(f"[{label}] POST {url}\nUser-Agent: {request.get_header('User-agent')}")
         print(json.dumps({k: v for k, v in fields.items() if k != "EmailBody"}, indent=2))
-        print(f"\nEmailBody ({len(fields['EmailBody'])} chars) not shown.")
-        print(f"Attachments: {[p.name for p in attachments] or 'none'}")
+        print(f"EmailBody ({len(fields['EmailBody'])} chars) not shown. "
+              f"Attachments: {[p.name for p in attachments] or 'none'}\n")
         return 0
-
     context = ssl._create_unverified_context() if args.insecure else None
     try:
         with urllib.request.urlopen(request, timeout=30, context=context) as response:
-            print(f"Email API responded {response.status}: {response.read(500).decode('utf-8', 'replace')}")
+            print(f"[{label}] Email API responded {response.status}: "
+                  f"{response.read(500).decode('utf-8', 'replace')}")
     except urllib.error.HTTPError as err:
-        print(f"Email API error {err.code}: {err.read(500).decode('utf-8', 'replace')}", file=sys.stderr)
+        print(f"[{label}] Email API error {err.code}: {err.read(500).decode('utf-8', 'replace')}", file=sys.stderr)
         return 1
     except urllib.error.URLError as err:
-        print(f"Could not reach email API: {err.reason}", file=sys.stderr)
+        print(f"[{label}] Could not reach email API: {err.reason}", file=sys.stderr)
         return 1
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

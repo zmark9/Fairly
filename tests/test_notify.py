@@ -33,5 +33,20 @@ class AttachmentTests(unittest.TestCase):
             self.assertEqual(names, ["upcoming_reservations.csv", "remotelock_big_sky.csv"])
 
 
+class CleaningEmailTests(unittest.TestCase):
+    REPORT = {"slug": "cabin", "property": "Mountain Cabin", "changes": [
+        {"kind": "New", "guest": "Testa Z.", "check_in": "2027-01-02", "check_out": "2027-01-05", "guests": "2 adults"},
+        {"kind": "Cancelled", "guest": "Old <b>", "check_in": "2027-02-02", "check_out": "2027-02-05", "guests": ""}],
+        "upcoming": [{"guest": "Testa Z.", "check_in": "2027-01-02", "check_out": "2027-01-05", "guests": "2 adults"}]}
+
+    def test_subject_and_body(self):
+        self.assertEqual(notify.build_cleaning_subject(self.REPORT, "2026-11-21"),
+                         "Mountain Cabin reservations 2026-11-21: 1 new, 1 cancelled")
+        body = notify.build_cleaning_body(self.REPORT, "2026-11-21")
+        self.assertIn("What changed", body)
+        self.assertIn("Old &lt;b&gt;", body)   # escaped
+        self.assertIn("All upcoming stays", body)
+
+
 if __name__ == "__main__":
     unittest.main()

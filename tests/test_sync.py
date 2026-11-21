@@ -207,6 +207,47 @@ class SplitToolTests(unittest.TestCase):
         self.assertEqual(records_for(detail)[0]["Last Initial"], "E")
 
 
+class CleaningTests(unittest.TestCase):
+    CFG = {**CONFIG, "homes": [CONFIG["homes"][0], {**CONFIG["homes"][1], "cleaning_notify": {"to_email": "x@example.test"}}]}
+
+    def rows(self, recs):
+        return [{k: str(v) for k, v in r.items() if not k.startswith("_")} for r in recs]
+
+    def test_new_changed_cancelled_and_initial_only_ignored(self):
+        before = records_for(make_detail("keep"), make_detail("move", check_in="2027-01-01", check_out="2027-01-05"),
+                             make_detail("gone", check_in="2027-02-01", check_out="2027-02-04"),
+                             make_detail("init", check_in="2027-03-01", check_out="2027-03-04", initial=None),
+                             make_detail("desert", home="home-a"))
+        after = records_for(make_detail("keep"), make_detail("move", check_in="2027-01-02", check_out="2027-01-05"),
+                            make_detail("init", check_in="2027-03-01", check_out="2027-03-04"),  # initial filled in
+                            make_detail("new", check_in="2027-04-01", check_out="2027-04-03"),
+                            make_detail("desert", home="home-a", check_in="2026-12-02"))   # other home
+        report, = sync.cleaning_report(self.rows(before), after, self.CFG, TODAY)
+        self.assertEqual(report["property"], "Mountain Cabin")
+        kinds = [(c["kind"], c["check_in"]) for c in report["changes"]]
+        self.assertEqual(kinds, [("New", "2027-04-01"), ("Changed", "2027-01-02"), ("Cancelled", "2027-02-01")])
+        changed = report["changes"][1]
+        self.assertEqual(changed["was"], "dates were 2027-01-01 to 2027-01-05")
+        self.assertEqual(changed["guests"], "3 (2 adults, 1 child)")
+        self.assertEqual(len(report["upcoming"]), 4)
+        self.assertNotIn("phone", str(report).lower())
+
+    def test_guest_count_change_and_first_run(self):
+        before = records_for(make_detail("r1"))
+        after_detail = make_detail("r1")
+        after_detail["reservation"]["GUEST_NUMBER_ADULTS"] = 4
+        report, = sync.cleaning_report(self.rows(before), records_for(after_detail), self.CFG, TODAY)
+        self.assertEqual(report["changes"][0]["was"], "guests were 3 (2 adults, 1 child)")
+        report, = sync.cleaning_report([], records_for(after_detail), self.CFG, TODAY)   # no baseline
+        self.assertEqual(report["changes"], [])
+
+    def test_owner_stay_label(self):
+        rec = records_for(make_detail("o", guest_type="OWNER", first="Mark"))[0]
+        rec["Adults"] = rec["Children"] = ""
+        row = sync._cleaning_row({k: str(v) for k, v in rec.items()})
+        self.assertEqual((row["guest"], row["guests"]), ("Mark Q. (Owner)", ""))
+
+
 class DiffTests(unittest.TestCase):
     def test_added_changed_cancelled_completed(self):
         previous = [

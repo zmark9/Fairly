@@ -102,6 +102,10 @@ REMOTELOCK_COLUMNS = [
 # Fields that, when they change between runs, are worth telling someone about.
 TRACKED_FIELDS = ["Check-in", "Check-out", "Guest First Name", "Last Initial", "Phone"]
 
+# What a cleaning manager cares about (homes with "cleaning_notify" in config.json).
+# A last initial being filled in is not worth an email; a guest-count change is.
+CLEANING_FIELDS = ["Check-in", "Check-out", "Guest First Name", "Guest Type", "Adults", "Children"]
+
 # Matches the automatic Fairly message "...confirmed reservation with Sierra P."
 CREATED_MESSAGE = re.compile(r"reservation with (?P<name>[^\n.]+)\.", re.IGNORECASE)
 
@@ -463,6 +467,76 @@ def diff(previous_rows, records, today):
     return {"added": added, "changed": changed, "cancelled": cancelled, "completed": completed}
 
 
+def _guest_count(row):
+    """'4 (2 adults, 2 children)', '2 adults', or '' when Fairly has no counts (owner stays)."""
+    def num(value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    adults, children = num(row.get("Adults")), num(row.get("Children"))
+    if adults is None and children is None:
+        return ""
+    adults, children = adults or 0, children or 0
+    parts = [f"{adults} adult{'s' if adults != 1 else ''}"]
+    if children:
+        parts.append(f"{children} child{'ren' if children != 1 else ''}")
+    return f"{adults + children} ({', '.join(parts)})" if children else parts[0]
+
+
+def _cleaning_row(row):
+    name = (row.get("Guest First Name") or "").strip()
+    if row.get("Last Initial"):
+        name += f" {row['Last Initial']}."
+    if row.get("Guest Type") and row["Guest Type"] != "Guest":
+        name += f" ({row['Guest Type']})"
+    return {"guest": name, "check_in": row["Check-in"], "check_out": row["Check-out"], "guests": _guest_count(row)}
+
+
+def cleaning_report(previous_rows, records, config, today):
+    """Per home with "cleaning_notify": its New / Changed / Cancelled stays and the upcoming schedule.
+
+    No changes are reported on a first run (no previous export), so the cleaner isn't
+    sent every reservation as "new".
+    """
+    reports = []
+    for home in config["homes"]:
+        if not home.get("cleaning_notify"):
+            continue
+        current = {r["Reservation ID"]: r for r in records if r["_home_id"] == home["id"]}
+        previous = {r["Reservation ID"]: r for r in previous_rows if r.get("Property") == home["name"]}
+        changes = []
+        if previous_rows:
+            for rid, rec in current.items():
+                old = previous.get(rid)
+                if old is None:
+                    changes.append({"kind": "New", **_cleaning_row(rec)})
+                    continue
+                fields = [f for f in CLEANING_FIELDS if str(rec[f]) != old.get(f, "")]
+                if fields:
+                    was = _cleaning_row(old)
+                    detail = []
+                    if {"Check-in", "Check-out"} & set(fields):
+                        detail.append(f"dates were {was['check_in']} to {was['check_out']}")
+                    if {"Adults", "Children"} & set(fields):
+                        detail.append(f"guests were {was['guests'] or 'not given'}")
+                    if {"Guest First Name", "Guest Type"} & set(fields):
+                        detail.append(f"guest was {was['guest']}")
+                    changes.append({"kind": "Changed", **_cleaning_row(rec), "was": "; ".join(detail)})
+            for rid, old in previous.items():
+                if rid not in current and old["Check-out"] >= today.isoformat():
+                    changes.append({"kind": "Cancelled", **_cleaning_row(old)})
+        order = {"New": 0, "Changed": 1, "Cancelled": 2}
+        changes.sort(key=lambda c: (order[c["kind"]], c["check_in"]))
+        reports.append({
+            "slug": home["slug"],
+            "property": home["name"],
+            "changes": changes,
+            "upcoming": [_cleaning_row(r) for r in sorted(current.values(), key=lambda r: r["Check-in"])],
+        })
+    return reports
+
+
 # ---------------------------------------------------------------------------
 # Writing output
 # ---------------------------------------------------------------------------
@@ -480,7 +554,7 @@ def short(rec):
     return f"{rec['Property']}: {rec['Check-in']} to {rec['Check-out']}, {name}"
 
 
-def write_outputs(out_dir, records, config, changes, warnings, today, messages=()):
+def write_outputs(out_dir, records, config, changes, warnings, today, messages=(), cleaning=()):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("*.csv"):
@@ -511,6 +585,7 @@ def write_outputs(out_dir, records, config, changes, warnings, today, messages=(
         "completed": [short(row) for row in changes["completed"]],
         "warnings": warnings,
         "reminders": list(messages),
+        "cleaning": list(cleaning),
         "files": files,
         "has_changes": bool(changes["added"] or changes["changed"] or changes["cancelled"]),
     }
@@ -561,8 +636,10 @@ def main(argv=None):
     warnings = find_warnings(records, config)
     messages, reminder_warnings = reminders.build_reminders(records, config, today)
     warnings += reminder_warnings
-    changes = diff(read_previous(args.previous), records, today)
-    summary = write_outputs(args.out, records, config, changes, warnings, today, messages)
+    previous_rows = read_previous(args.previous)
+    changes = diff(previous_rows, records, today)
+    cleaning = cleaning_report(previous_rows, records, config, today)
+    summary = write_outputs(args.out, records, config, changes, warnings, today, messages, cleaning)
 
     print(summary_markdown(summary))
     return 0

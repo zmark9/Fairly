@@ -144,6 +144,16 @@ The Fairly MCP is **read-only** (checked Nov 11, 2026): it can't edit home direc
 - Any message triggers the email, even when no reservations changed.
 - The Big Sky **house manual in Fairly still lists the March–April 2026 codes and plow dates**. Remove them by hand in Fairly (Listings → house manual) and say the code is sent by message.
 
+### 4. Cleaning manager email (Big Sky)
+
+A separate email for the cleaning manager (Mike) about each home that has `cleaning_notify: {to_email, to_name}` in `config.json`. **Currently pointed at the owner's address for testing**; switch `to_email`/`to_name` to Mike once approved.
+
+- **Sent only when that home has a New, Changed or Cancelled stay** (or `notify.py --force`). Manual runs don't trigger it, so **Run now** doesn't re-notify him.
+- "Changed" means a change in check-in, check-out, guest name, guest type, adults or children (`sync.CLEANING_FIELDS`). A last initial being filled in is ignored.
+- Content: a "What changed" table (with the old dates or guest count), then all upcoming stays at that home. Name, dates and guest count only (owner stays are labelled and have no count). No phones, payouts, links or attachments.
+- No changes are reported on a first run without a previous export, so he isn't sent every stay as "new".
+- Built by `sync.cleaning_report` into `summary.json["cleaning"]`; sent by `notify.py`.
+
 ## Architecture (proposed)
 
 ```
