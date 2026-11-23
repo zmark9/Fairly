@@ -156,7 +156,7 @@ A separate email per home for that home's cleaning manager, configured by `clean
 - **On/off switch:** `active` (defaults to true if missing). Off means the cleaner never gets it; manual runs still send you a preview marked `[Test copy, cleaning email is off]`.
 - **Big Sky:** Mike Delao, live from the Nov 22, 2026 scheduled run.
 - **Destin:** Amber Greenwood (caretaker), live from the Nov 22, 2026 scheduled run. She can allow early check-in or late check-out at her discretion, but the email uses the same standard times.
-- **Papago Park:** placeholder, switched off with no recipient yet. To go live, fill in `to_email`/`to_name` and set `active: true`.
+- **Papago Park:** Gr8 8 Partner Support (Great 8 Cleaning Co), live from the Nov 24, 2026 scheduled run.
 - All homes use the same times (4 PM / 10 AM), so the times line in the email is shared.
 
 - **Scheduled run:** sent to the cleaner only when that home has a New, Changed or Cancelled stay (or `notify.py --force`).
