@@ -29,6 +29,7 @@ Target runtime: **Azure Function, timer trigger (cron)**.
 | `sync.py` | Raw Fairly JSON (`raw/`) → CSVs + `summary.json` (`output/`). All business rules live here. |
 | `reminders.py` | Ready-to-send guest messages for homes with a `parking` config (Big Sky): rotating gate code + snow-plow reminders. Included in `summary.json` and the email. |
 | `notify.py` | Emails `summary.json` and the RemoteLock rows through the messaging API |
+| `cleaning.py` | Lists or changes each home's cleaning-email switch and recipient in `config.json` |
 | `run_sync.sh` | Cloud entry point: exports branch worktree → `sync.py` → commit/push `exports` → `notify.py` |
 | `tests/` | `test_sync.py`, `test_reminders.py`, `test_notify.py`, all with made-up data |
 
@@ -151,6 +152,7 @@ The Fairly MCP is **read-only** (checked Nov 11, 2026): it can't edit home direc
 
 A separate email per home for that home's cleaning manager, configured by `cleaning_notify: {active, to_email, to_name}` on the home in `config.json`.
 
+- **Changing it:** `py cleaning.py` lists every home; `py cleaning.py on|off <home> --push` switches one; `py cleaning.py set <home> "Name" email --push` changes the recipient (the switch stays as it was; a new home starts off). Homes can be named by any unique part of the slug. `--push` commits and pushes `config.json` so the next cloud run uses it. Editing `config.json` on GitHub works too.
 - **On/off switch:** `active` (defaults to true if missing). Off means the cleaner never gets it; manual runs still send you a preview marked `[Test copy, cleaning email is off]`.
 - **Big Sky:** Mike Delao, live from the Nov 22, 2026 scheduled run.
 - **Destin:** Amber Greenwood (caretaker), live from the Nov 22, 2026 scheduled run. She can allow early check-in or late check-out at her discretion, but the email uses the same standard times.
