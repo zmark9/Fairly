@@ -12,9 +12,9 @@
       "timezone": "America/Phoenix",
       "remotelock": false,
       "cleaning_notify": {
-        "active": false,
-        "to_email": "",
-        "to_name": ""
+        "active": true,
+        "to_email": "support@great8cleaningco.com",
+        "to_name": "Gr8 8 Partner Support"
       }
     },
     {
