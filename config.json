@@ -7,7 +7,7 @@
   "homes": [
     {
       "id": "m3C823iHokWV3CSBFjkFU",
-      "name": "Papago Park Condo w/ Pool & Hot Tub",
+      "name": "Papago Park Condo #1117 ",
       "slug": "papago_park",
       "timezone": "America/Phoenix",
       "remotelock": false,
@@ -19,7 +19,7 @@
     },
     {
       "id": "wDGU0odwZhMn_liZWCTHm",
-      "name": "Big Sky Mountain Retreat | Ski-In/Ski-Out",
+      "name": "Shoshone #1925 at Big Sky Mountain ",
       "slug": "big_sky",
       "timezone": "America/Denver",
       "remotelock": true,
@@ -48,7 +48,7 @@
         "snow_removal": {
           "season_start": "2026-11-24",
           "season_end": "2027-04-30",
-          "move_by": "9:00 AM",
+          "move_by": "6:00 AM",
           "alternatives": "the Free Skier Lot, Rows A-C, or the Lone Peak Lot",
           "alternatives_sentence": "The Free Skier Lot (Rows A-C) is the easiest alternative, or you can use the Lone Peak Lot."
         }
@@ -56,7 +56,7 @@
     },
     {
       "id": "ZqH1txJqhcMDXvsIwmkrz",
-      "name": "Palms of Destin Condo w/ Lagoon Pool",
+      "name": "Palms of Destin Condo #1807",
       "slug": "destin",
       "timezone": "America/Chicago",
       "remotelock": false,
@@ -75,10 +75,7 @@
     "send_when_unchanged": false,
     "scheduled_hour": 6,
     "attach_files": true,
-    "attachments": [
-      "upcoming_reservations.csv",
-      "remotelock_*.csv"
-    ],
+    "attachments": ["upcoming_reservations.csv", "remotelock_*.csv"],
     "exports_url": "https://github.com/zmark9/Fairly/tree/exports"
   }
 }
