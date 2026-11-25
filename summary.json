@@ -1,5 +1,5 @@
 {
-  "run_date": "2026-11-24",
+  "run_date": "2026-11-25",
   "total": 21,
   "per_home": {
     "Papago Park Condo #1117 ": 12,
@@ -27,92 +27,7 @@
     {
       "slug": "papago_park",
       "property": "Papago Park Condo #1117 ",
-      "changes": [
-        {
-          "kind": "New",
-          "guest": "Mark Z. (Owner)",
-          "check_in": "2026-10-20",
-          "check_out": "2026-11-29",
-          "guests": ""
-        },
-        {
-          "kind": "New",
-          "guest": "Summer",
-          "check_in": "2026-12-04",
-          "check_out": "2026-12-07",
-          "guests": "1 adult"
-        },
-        {
-          "kind": "New",
-          "guest": "Sierra",
-          "check_in": "2026-12-12",
-          "check_out": "2026-12-18",
-          "guests": "4 adults"
-        },
-        {
-          "kind": "New",
-          "guest": "Mark B.",
-          "check_in": "2026-12-18",
-          "check_out": "2026-12-22",
-          "guests": "3 adults"
-        },
-        {
-          "kind": "New",
-          "guest": "Kevin S.",
-          "check_in": "2026-12-25",
-          "check_out": "2026-12-31",
-          "guests": "3 adults"
-        },
-        {
-          "kind": "New",
-          "guest": "Maxwell",
-          "check_in": "2026-12-31",
-          "check_out": "2027-01-05",
-          "guests": "4 adults"
-        },
-        {
-          "kind": "New",
-          "guest": "Mark Z. (Owner)",
-          "check_in": "2027-01-06",
-          "check_out": "2027-01-11",
-          "guests": ""
-        },
-        {
-          "kind": "New",
-          "guest": "Ashley (Owner's guest)",
-          "check_in": "2027-01-11",
-          "check_out": "2027-01-17",
-          "guests": ""
-        },
-        {
-          "kind": "New",
-          "guest": "Tawnya (Owner's guest)",
-          "check_in": "2027-01-18",
-          "check_out": "2027-01-22",
-          "guests": ""
-        },
-        {
-          "kind": "New",
-          "guest": "Ryan M.",
-          "check_in": "2027-02-06",
-          "check_out": "2027-02-22",
-          "guests": "3 (2 adults, 1 child)"
-        },
-        {
-          "kind": "New",
-          "guest": "Heidi",
-          "check_in": "2027-03-07",
-          "check_out": "2027-03-11",
-          "guests": "2 adults"
-        },
-        {
-          "kind": "New",
-          "guest": "Anthony",
-          "check_in": "2027-04-24",
-          "check_out": "2027-04-27",
-          "guests": "4 (2 adults, 2 children)"
-        }
-      ],
+      "changes": [],
       "upcoming": [
         {
           "guest": "Mark Z. (Owner)",
@@ -191,57 +106,7 @@
     {
       "slug": "big_sky",
       "property": "Shoshone #1925 at Big Sky Mountain ",
-      "changes": [
-        {
-          "kind": "New",
-          "guest": "Pamela R.",
-          "check_in": "2026-12-28",
-          "check_out": "2027-01-02",
-          "guests": "4 (2 adults, 2 children)"
-        },
-        {
-          "kind": "New",
-          "guest": "Kimberly H.",
-          "check_in": "2027-02-04",
-          "check_out": "2027-02-11",
-          "guests": "4 adults"
-        },
-        {
-          "kind": "New",
-          "guest": "Adam",
-          "check_in": "2027-02-13",
-          "check_out": "2027-02-20",
-          "guests": "4 (2 adults, 2 children)"
-        },
-        {
-          "kind": "New",
-          "guest": "Don",
-          "check_in": "2027-02-20",
-          "check_out": "2027-02-26",
-          "guests": "3 (2 adults, 1 child)"
-        },
-        {
-          "kind": "New",
-          "guest": "Christine",
-          "check_in": "2027-03-07",
-          "check_out": "2027-03-13",
-          "guests": "4 adults"
-        },
-        {
-          "kind": "New",
-          "guest": "Shanna S.",
-          "check_in": "2027-03-13",
-          "check_out": "2027-03-17",
-          "guests": "4 (2 adults, 2 children)"
-        },
-        {
-          "kind": "New",
-          "guest": "Elaine",
-          "check_in": "2027-03-26",
-          "check_out": "2027-03-30",
-          "guests": "4 (2 adults, 2 children)"
-        }
-      ],
+      "changes": [],
       "upcoming": [
         {
           "guest": "Pamela R.",
@@ -290,22 +155,7 @@
     {
       "slug": "destin",
       "property": "Palms of Destin Condo #1807",
-      "changes": [
-        {
-          "kind": "New",
-          "guest": "Christiana",
-          "check_in": "2026-12-26",
-          "check_out": "2026-12-30",
-          "guests": "4 (2 adults, 2 children)"
-        },
-        {
-          "kind": "New",
-          "guest": "Mark Z. (Owner)",
-          "check_in": "2027-01-14",
-          "check_out": "2027-03-12",
-          "guests": ""
-        }
-      ],
+      "changes": [],
       "upcoming": [
         {
           "guest": "Christiana",
