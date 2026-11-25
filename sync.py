@@ -86,6 +86,7 @@ RESERVATION_COLUMNS = [
     "Caretaker Payout",
     "Message Thread Link",
     "Notes",
+    "Home ID",
 ]
 
 REMOTELOCK_COLUMNS = [
@@ -257,18 +258,27 @@ def is_upcoming(reservation, today):
 
 
 def last_initial(detail, owner):
-    """Fairly only stores a first name. The last initial comes from, in order:
-    1. the old 'Reservation created' message text ('...reservation with Sierra P.'),
-       which get_conversations stopped returning in Nov 2026 (now just 'Reservation created');
-    2. the author name on a message the guest wrote ('Sierra Parker'), so it is
-       blank until the guest has sent a message."""
+    """The last initial comes from, in order:
+    1. GUEST_LAST_NAME on the reservation (exposed by the Fairly MCP since Nov 2026);
+    2. the old 'Reservation created' message text ('...reservation with Sierra P.'),
+       which get_conversations no longer returns (now just 'Reservation created');
+    3. the author name on a message the guest wrote ('Sierra Parker').
+    Only the initial is kept; the full last name never reaches the output files."""
     reservation = detail["reservation"]
     if reservation.get("GUEST_TYPE") == "OWNER":
         return owner.get("last_initial", "")
 
     first = (reservation.get("GUEST_FIRST_NAME") or "").strip()
     messages = detail.get("conversation_messages") or []
-    return _initial_from_created_message(messages, first) or _initial_from_author(messages, first, owner)
+    return (_initial_from_last_name(reservation.get("GUEST_LAST_NAME"))
+            or _initial_from_created_message(messages, first)
+            or _initial_from_author(messages, first, owner))
+
+
+def _initial_from_last_name(last_name):
+    """'Parker' -> 'P', 'van Example' -> 'E' (last word, like the author fallback), 'Parker (2)' -> 'P'."""
+    words = [word for word in (last_name or "").split() if word[0].isalpha()]
+    return words[-1][0].upper() if words else ""
 
 
 def _initial_from_author(messages, first, owner):
@@ -355,6 +365,7 @@ def build_record(detail, home, owner, today):
         "Caretaker Payout": money(caretaker_payout),
         "Message Thread Link": r.get("MESSAGE_THREAD_LINK") or "",
         "Notes": "; ".join(notes),
+        "Home ID": home["id"],
         # Not written to the reservation CSV; used for the RemoteLock file.
         "_pin": remotelock_pin(r),
         "_has_finances": "funds_distribution" in detail,
@@ -496,20 +507,27 @@ def _cleaning_row(row):
 def cleaning_report(previous_rows, records, config, today):
     """Per home with "cleaning_notify": its New / Changed / Cancelled stays and the upcoming schedule.
 
+    Stays are matched by Reservation ID and homes by Home ID, never by name, so renaming a home
+    in config.json doesn't report its stays as new.
+
     No changes are reported on a first run (no previous export), so the cleaner isn't
     sent every reservation as "new".
     """
+    def was_at(row, home):
+        # Exports made before the "Home ID" column was added only have the home's name.
+        return row["Home ID"] == home["id"] if row.get("Home ID") else row.get("Property") == home["name"]
+
+    previous = {r["Reservation ID"]: r for r in previous_rows}
     reports = []
     for home in config["homes"]:
         if not home.get("cleaning_notify"):
             continue
         current = {r["Reservation ID"]: r for r in records if r["_home_id"] == home["id"]}
-        previous = {r["Reservation ID"]: r for r in previous_rows if r.get("Property") == home["name"]}
         changes = []
         if previous_rows:
             for rid, rec in current.items():
                 old = previous.get(rid)
-                if old is None:
+                if old is None or (old.get("Home ID") and not was_at(old, home)):
                     changes.append({"kind": "New", **_cleaning_row(rec)})
                     continue
                 fields = [f for f in CLEANING_FIELDS if str(rec[f]) != old.get(f, "")]
@@ -524,7 +542,7 @@ def cleaning_report(previous_rows, records, config, today):
                         detail.append(f"guest was {was['guest']}")
                     changes.append({"kind": "Changed", **_cleaning_row(rec), "was": "; ".join(detail)})
             for rid, old in previous.items():
-                if rid not in current and old["Check-out"] >= today.isoformat():
+                if was_at(old, home) and rid not in current and old["Check-out"] >= today.isoformat():
                     changes.append({"kind": "Cancelled", **_cleaning_row(old)})
         order = {"New": 0, "Changed": 1, "Cancelled": 2}
         changes.sort(key=lambda c: (order[c["kind"]], c["check_in"]))

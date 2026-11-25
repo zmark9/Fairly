@@ -4,7 +4,7 @@ notify.py - email the sync summary through the zmark messaging API.
 
 Reads output/summary.json (written by sync.py) and the RemoteLock CSVs, and
 POSTs an EmailToSend as multipart/form-data to <api_url> (the API's
-`sendemailform` action, which binds [FromForm] and fixes applicationId = 2,
+`sendemailform` action, which binds [FromForm] and fixes applicationId = 1,
 so the sender address comes from the API, not from here).
 
 The API rejects common script User-Agents (python-urllib, curl/, ...), so we

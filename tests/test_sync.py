@@ -29,7 +29,7 @@ TODAY = date(2026, 11, 11)
 
 def make_detail(rid, home="home-b", check_in="2026-12-01", check_out="2026-12-05", status="CONFIRMED",
                 first="Testa", initial="Z", phone="+15555550123", guest_type="GUEST", channel="AIRBNB",
-                owner_due=1000.5, caretaker_due=(150, 40.25), offset="-0700", door_code=None):
+                owner_due=1000.5, caretaker_due=(150, 40.25), offset="-0700", door_code=None, last_name=None):
     """Build a fake get_reservation_by_id result."""
     messages = []
     if initial is not None:
@@ -44,7 +44,7 @@ def make_detail(rid, home="home-b", check_in="2026-12-01", check_out="2026-12-05
         "reservation": {
             "ID": rid, "HOME_ID": home, "STATUS": status, "CHECK_IN": check_in, "CHECK_OUT": check_out,
             "EFFECTIVE_CHECK_OUT": check_out, "CHANNEL_ID": channel, "GUEST_TYPE": guest_type,
-            "GUEST_FIRST_NAME": first, "GUEST_PHONE_NUMBERS": [phone] if phone else [],
+            "GUEST_FIRST_NAME": first, "GUEST_LAST_NAME": last_name, "GUEST_PHONE_NUMBERS": [phone] if phone else [],
             "GUEST_NUMBER_ADULTS": 2, "GUEST_NUMBER_CHILDREN": 1, "GUEST_NUMBER_PETS": 0,
             "EXTERNAL_ID": f"CONF-{rid}", "CANCELLATION_POLICY": "AIRBNB_FIRM", "NOTES": None,
             "BOOKED_AT": "2026-11-01 03:30:00.000 +0000",
@@ -120,6 +120,19 @@ class RecordTests(unittest.TestCase):
         rec = records_for(make_detail("r", initial=None, phone=None))[0]
         self.assertEqual(rec["Last Initial"], "")
         self.assertEqual(rec["Phone"], "")
+
+    def test_initial_from_guest_last_name(self):
+        for last_name, expected in [("Parker", "P"), ("parker", "P"), ("Smith-Jones", "S"), ("van Example", "E"),
+                                    ("Parker (2)", "P"), (" Qu ", "Q")]:
+            rec = records_for(make_detail("r", initial=None, last_name=last_name))[0]
+            self.assertEqual(rec["Last Initial"], expected, last_name)
+            self.assertNotIn(last_name, rec.values())  # only the initial is kept
+        # It wins over the message text; a blank one falls back to it.
+        self.assertEqual(records_for(make_detail("r", initial="Z", last_name="Parker"))[0]["Last Initial"], "P")
+        self.assertEqual(records_for(make_detail("r", initial="Z", last_name=" "))[0]["Last Initial"], "Z")
+        # The owner's own stays keep the configured initial.
+        owner = records_for(make_detail("o", guest_type="OWNER", last_name="Parker"))[0]
+        self.assertEqual(owner["Last Initial"], "Q")
 
     def test_sorted_by_home_then_checkin(self):
         recs = records_for(
@@ -240,6 +253,29 @@ class CleaningTests(unittest.TestCase):
         self.assertEqual(report["changes"][0]["was"], "guests were 3 (2 adults, 1 child)")
         report, = sync.cleaning_report([], records_for(after_detail), self.CFG, TODAY)   # no baseline
         self.assertEqual(report["changes"], [])
+
+    def test_renamed_home_is_not_a_change(self):
+        renamed = {**self.CFG, "homes": [self.CFG["homes"][0], {**self.CFG["homes"][1], "name": "New Name"}]}
+        before = self.rows(records_for(
+            make_detail("keep"), make_detail("gone", check_in="2027-02-01", check_out="2027-02-04"),
+            make_detail("desert", home="home-a")))
+        after = sync.build_records({"keep": make_detail("keep")}, renamed, TODAY)
+        report, = sync.cleaning_report(before, after, renamed, TODAY)
+        self.assertEqual([(c["kind"], c["check_in"]) for c in report["changes"]], [("Cancelled", "2027-02-01")])
+        # Exports from before the Home ID column: still no false "New" after a rename.
+        legacy = [{k: v for k, v in row.items() if k != "Home ID"} for row in before]
+        report, = sync.cleaning_report(legacy, after, renamed, TODAY)
+        self.assertEqual(report["changes"], [])
+        # ...and without a rename, cancellations are still found by name.
+        report, = sync.cleaning_report(legacy, records_for(make_detail("keep")), self.CFG, TODAY)
+        self.assertEqual([c["kind"] for c in report["changes"]], ["Cancelled"])
+
+    def test_stay_moved_between_homes(self):
+        cfg = {**CONFIG, "homes": [{**h, "cleaning_notify": {"to_email": "x@example.test"}} for h in CONFIG["homes"]]}
+        before = self.rows(records_for(make_detail("r1", home="home-a")))
+        desert, mountain = sync.cleaning_report(before, records_for(make_detail("r1")), cfg, TODAY)
+        self.assertEqual([c["kind"] for c in desert["changes"]], ["Cancelled"])
+        self.assertEqual([c["kind"] for c in mountain["changes"]], ["New"])
 
     def test_owner_stay_label(self):
         rec = records_for(make_detail("o", guest_type="OWNER", first="Mark"))[0]

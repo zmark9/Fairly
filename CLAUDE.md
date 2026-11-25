@@ -9,17 +9,11 @@ Automated pipeline that pulls upcoming reservations from Fairly for the owner's 
 1. **Owner's API / database**: the system of record for all upcoming reservations.
 2. **RemoteLock CSV (Big Sky only)**: Big Sky has no Fairly-managed lock code, so guest access is provisioned in RemoteLock from a CSV upload (manual today).
 
-Target runtime: **Azure Function, timer trigger (cron)**.
+Runtime: a **Claude cloud routine** (6 AM Phoenix time) that fetches from Fairly through the MCP connector, then runs `run_sync.sh`. An Azure Function is only a possible future alternative.
 
 ## Status
 
-- [x] Manual proof of concept via Claude + Fairly MCP (Nov 2026): CSV exports in this folder.
-- [x] Phase 1: Spec written (some open questions remain, see below)
-- [ ] Phase 2: Fairly data access from a headless job (Claude Scheduled Task + Fairly connector)
-- [x] Phase 3: Transform module `sync.py` with tests, verified against the manual exports
-- [ ] Phase 4: Owner API integration (email summary via `notify.py` written; reservations API not started)
-- [x] Phase 5: RemoteLock CSV generation (Big Sky)
-- [ ] Phase 6: Scheduling and monitoring
+Live and running daily: Fairly fetch, transform, RemoteLock CSV, exports branch, owner and cleaning emails. Not started: owner reservations API (blocked on open question 1), monitoring beyond the routine's own failure status.
 
 ## Code layout
 
@@ -31,7 +25,7 @@ Target runtime: **Azure Function, timer trigger (cron)**.
 | `notify.py` | Emails `summary.json` and the RemoteLock rows through the messaging API |
 | `cleaning.py` | Lists or changes each home's cleaning-email switch and recipient in `config.json` |
 | `run_sync.sh` | Cloud entry point: exports branch worktree → `sync.py` → commit/push `exports` → `notify.py` |
-| `tests/` | `test_sync.py`, `test_reminders.py`, `test_notify.py`, all with made-up data |
+| `tests/` | One `test_*.py` per module, all with made-up data |
 
 **Data flow:** `sync.main` loads `raw/` → `build_records` (filter + normalize) → `find_warnings` → `reminders.build_reminders` → `diff` against `--previous` → `write_outputs` (CSVs + `summary.json`/`summary.md`). `notify.py` reads only `output/`, never `raw/`. Change detection today compares against the previous run's CSVs (the `exports` branch worktree in the cloud), not the owner DB. The code is stdlib only (`urllib` for HTTP); `requirements.txt` only adds `tzdata` on Windows.
 
@@ -41,6 +35,14 @@ Target runtime: **Azure Function, timer trigger (cron)**.
 - One file or test: `py -m unittest discover -s tests -p test_sync.py -k test_fields`
 - Transform: put the raw Fairly JSON in `raw/` (`<ID>.json`, `<ID>.finances.json`, `<ID>.conversations.json`; see Data source), then `py sync.py --raw raw --out output`. Add `--previous <dir>` to diff against an earlier output, and `--today YYYY-MM-DD` to pin the date (needed for reproducible reminder and in-progress checks).
 - Email: `py notify.py --out output --dry-run`, or against the local server with `--api-url https://localhost:7075/api/email/sendemailform --insecure --force`.
+
+**Gotchas:**
+- **`notify.py` sends real email unless `--dry-run`.** During the `scheduled_hour` a local run counts as scheduled and can email the cleaners; `--force` then emails them even with no changes.
+- **Two change lists in `sync.py`:** `TRACKED_FIELDS` drives the owner's email, `CLEANING_FIELDS` the cleaner's. A guest-count-only change emails the cleaner but not the owner. The RemoteLock PIN is in neither, so a late door code isn't reported as a change.
+- **IDs, not names:** reservations are matched by `Reservation ID` and homes by `Home ID`. Never match on `Property`: the names in `config.json` get renamed (on Nov 24, 2026 a rename made the cleaning reports list every stay as "New"). `slug` must stay stable too: it names the CSV files and links each cleaning report to its recipient.
+- **First run (no `--previous`):** the owner's summary lists every stay as new; cleaning reports list no changes.
+- **`sync.py` loads everything in `raw/`.** Clear it before a local pull, or stale files bring cancelled stays back. The cloud starts from a fresh clone.
+- **`cleaning.py` rewrites all of `config.json`** (formatting included), and `--push` commits any other edits in that file straight to `main`.
 
 **Exports branch:** `exports` is an orphan branch holding only the latest CSVs and summary, one commit per run that changed something. It contains guest PII and must stay in a private repo.
 
@@ -55,14 +57,14 @@ Target runtime: **Azure Function, timer trigger (cron)**.
 
 ## Homes in scope
 
-| Home | Fairly home ID | Location / TZ | Lock / access | Outputs |
-|---|---|---|---|---|
-| Papago Park Condo w/ Pool & Hot Tub | `m3C823iHokWV3CSBFjkFU` | Phoenix, AZ / America/Phoenix | Fairly-managed code | API |
-| Big Sky Mountain Retreat \| Ski-In/Ski-Out | `wDGU0odwZhMn_liZWCTHm` | Big Sky, MT / America/Denver | **None in Fairly → RemoteLock** | API + RemoteLock CSV |
-| Palms of Destin Condo w/ Lagoon Pool | `ZqH1txJqhcMDXvsIwmkrz` | Destin, FL / America/Chicago | Building staff (front desk) | API (added Nov 11 2026). Caretaker is Amber Greenwood, so "Caretaker Payout" here is her money, not the owner's. |
-| Sedona View Retreat | `puCjP_PbkDflhxH-JmXLH` | Sedona, AZ | Not live | Out of scope |
+| Home (Fairly title) | Slug | Fairly home ID | Location / TZ | Lock / access | Outputs |
+|---|---|---|---|---|---|
+| Papago Park Condo w/ Pool & Hot Tub | `papago_park` | `m3C823iHokWV3CSBFjkFU` | Phoenix, AZ / America/Phoenix | Fairly-managed code | API |
+| Big Sky Mountain Retreat \| Ski-In/Ski-Out | `big_sky` | `wDGU0odwZhMn_liZWCTHm` | Big Sky, MT / America/Denver | **None in Fairly → RemoteLock** | API + RemoteLock CSV |
+| Palms of Destin Condo w/ Lagoon Pool | `destin` | `ZqH1txJqhcMDXvsIwmkrz` | Destin, FL / America/Chicago | Building staff (front desk) | API. Caretaker is Amber Greenwood, so "Caretaker Payout" here is her money, not the owner's. |
+| Sedona View Retreat | n/a | `puCjP_PbkDflhxH-JmXLH` | Sedona, AZ | Not live | Out of scope |
 
-Keep home IDs in configuration, not hard-coded, so homes can be added or removed.
+Keep home IDs in configuration, not hard-coded, so homes can be added or removed. Output shows each home's `name` from `config.json`, which can differ from the Fairly title.
 
 ## Data source: Fairly
 
@@ -70,15 +72,15 @@ Accessed today through the **Fairly MCP server** (tools: `search_reservations`, 
 
 - `search_reservations(home_id, date_range_start=today)` returns every reservation whose stay overlaps today or later, newest check-in first, 50 per page (`nextCursor` for more).
 - **Split since ~Nov 19–21, 2026.** Each reservation now takes three calls, saved to `raw/` and merged by `sync.load_details`:
-  - `get_reservation_by_id(id)` → `raw/<ID>.json`: the reservation (plus snapshot and alterations). No money and no messages any more.
+  - `get_reservation_by_id(id)` → `raw/<ID>.json`: the reservation (plus snapshot and alterations). No money and no messages.
   - `get_reservation_finances(id)` → `raw/<ID>.finances.json`: `funds_distribution`, `line_items`, `payouts`. Only active distribution rows; `DELETED_AT` is no longer present.
-  - `get_conversations(reservation_id)` → `raw/<ID>.conversations.json`: `conversation_messages`, oldest first (only the newest come back if `truncated`).
+  - `get_conversations(reservation_id)` → `raw/<ID>.conversations.json`: `conversation_messages`, oldest first (only the newest come back if `truncated`). `sync.py` uses these only as a fallback for the last initial.
   - A reservation with no finance file gets a "No finance data" warning instead of silently showing $0.
-  - The scheduled routine's prompt must fetch all three. It stopped safely on 11/21 when only the first one existed.
+  - The scheduled routine's prompt must fetch the first two. The conversations call is optional while `GUEST_LAST_NAME` is filled in.
 
 ### Filtering rules
 
-- Keep only `STATUS = CONFIRMED` (and `MIDSTAY_CANCELLED` if the stay is in progress).
+- Keep only `STATUS = CONFIRMED` and `MIDSTAY_CANCELLED`, until `EFFECTIVE_CHECK_OUT` (falling back to `CHECK_OUT`) has passed. The output still shows the scheduled `CHECK_OUT`.
 - Drop `CANCELLED`, `PAYMENT_FAILED`, `VALIDATION_FAILED`, `PROPOSED_ALTERATION`, `INITIAL_SNAPSHOT`. Failed VRBO payment attempts show up as duplicate rows for the same dates.
 - Include stays in progress (check-in before today, check-out on or after today) and flag them in Notes.
 - Include owner (`OWNER`) and owner's-guest (`OWNER_GUEST`) stays. They need access too.
@@ -89,13 +91,13 @@ The unique key is the **Fairly reservation ID** (`ID`). Every write must be idem
 
 | Field | Source | Notes |
 |---|---|---|
-| Fairly Reservation ID | `ID` | Primary key. Not in the CSV today; required for the API. |
-| Property | home `TITLE` | |
+| Reservation ID | `ID` | Primary key. |
+| Property | `name` in `config.json` | Display only; never use it as a key. |
 | Check-in | `CHECK_IN` | Date. Time comes from `CHECK_IN_AT` (home TZ, normally 4 PM). |
 | Check-out | `CHECK_OUT` | Date. Time comes from `CHECK_OUT_AT` (normally 10 AM). |
 | Nights | derived | `CHECK_OUT - CHECK_IN` |
 | Guest First Name | `GUEST_FIRST_NAME` | |
-| Last Initial | Old source: the "Reservation created" system message (`...confirmed reservation with <First> <I>.`), which `get_conversations` now returns as just `Reservation created`. Fallback: the `MESSAGE_AUTHOR` of a message the guest wrote (`<First> <Last>`, skipping Fairly/system and the owner's messages). | **Blank until the guest sends a message**, so expect "Last initial not found" warnings for new bookings. The owner's own stays use the owner's initial. |
+| Last Initial | First letter of `GUEST_LAST_NAME` (last word if there are several; exposed by the MCP since Nov 2026). Fallbacks: the old "Reservation created" message text, then the `MESSAGE_AUTHOR` of a message the guest wrote. | The full last name never reaches the outputs. The owner's own stays use the owner's initial from `config.json`. |
 | Guest Type | `GUEST_TYPE` | Guest / Owner / Owner's guest |
 | Phone | `GUEST_PHONE_NUMBERS[0]` | **Airbnb stopped sharing real guest phones in late Oct 2026** and now only gives a proxy number, so new Airbnb bookings arrive with no phone. Missing phones on Airbnb are expected (no warning); VRBO and direct bookings still have them. |
 | Email | n/a | **Not available from Fairly.** Kept as an empty column for compatibility. |
@@ -104,12 +106,13 @@ The unique key is the **Fairly reservation ID** (`ID`). Every write must be idem
 | Adults / Children | `GUEST_NUMBER_ADULTS` / `_CHILDREN` | Null for owner bookings |
 | Pets | `GUEST_NUMBER_PETS` | |
 | Booked On | `BOOKED_AT` | UTC; convert to the home's TZ |
-| Owner Payout | `get_reservation_finances` → `funds_distribution`: sum `AMOUNT_DUE` where `DELETED_AT` is null, `USER_ID` = owner, `ROLE = OWNER`, reason `REVENUE_SHARE_RENT` | Expected net payout; Fairly recalculates it live until paid out (KB article 84). $0 for owner stays. Do **not** use `PRICES`, which is the gross advertised price. |
-| Caretaker Payout | same table, `ROLE = CARETAKER` (`CLEANING_LABOR` + `REVENUE_SHARE_RENT`) | The owner is also the caretaker on Papago and Big Sky, so this money goes to them too. |
+| Owner Payout | `get_reservation_finances` → `funds_distribution`: sum of `AMOUNT_DUE` for `ROLE = OWNER` rows without `DELETED_AT` (no filter on `USER_ID` or reason) | Expected net payout; Fairly recalculates it live until paid out (KB article 84). $0 for owner stays. Do **not** use `PRICES`, which is the gross advertised price. |
+| Caretaker Payout | same table, `ROLE = CARETAKER` (cleaning + rent share) | The owner is also the caretaker on Papago and Big Sky, so this money goes to them too. |
 | Cancellation Policy | `CANCELLATION_POLICY` | |
 | Message Thread Link | `MESSAGE_THREAD_LINK` | Null for owner bookings |
-| Status | `STATUS` | Needed for change detection |
+| Status | `STATUS` | Not in the CSV; needed by the API. |
 | Notes | `NOTES` + derived flags | e.g. "In progress" |
+| Home ID | `HOME_ID` | Last CSV column; matches a previous export to its home. Exports before Nov 26, 2026 lack it and fall back to the name. |
 
 ## Outputs
 
@@ -123,92 +126,70 @@ The unique key is the **Fairly reservation ID** (`ID`). Every write must be idem
 
 - One file per run containing Big Sky reservations only.
 - Columns (RemoteLock import format): `name, email, department, start date, start time, end date, end time, pin`
-  - `name` = `<First> <Last Initial>.` · `email` = empty (not available) · `department` = home title
+  - `name` = `<First> <Last Initial>.` · `email` = empty (not available) · `department` = the home's `name` in `config.json`
   - `start date` / `start time` = check-in date, `16:00` · `end date` / `end time` = check-out date, `10:00` (formats `YYYY-MM-DD`, 24-hour `HH:mm`, confirmed OK)
   - `pin` = Airbnb's **`SUGGESTED_DOOR_CODE`** when present, otherwise the **last 4 digits of the guest's phone** (`sync.remotelock_pin`). If neither exists, leave it blank and flag it. Also flag two overlapping stays with the same PIN.
   - **Airbnb impact:** Airbnb no longer shares real guest phones, but it sends a suggested door code (last 4 of the real phone), which Fairly exposes as `SUGGESTED_DOOR_CODE`. The code wins over the phone because an Airbnb phone may be a proxy number. It's null for non-Airbnb channels and for bookings created before 2026-10-20, which fall back to the phone.
+- Owner and owner's-guest stays are included.
 - File name: `remotelock_big_sky.csv`
-- **Import behavior:** RemoteLock ignores duplicate rows, so re-uploading the full list is safe. Not yet known: whether a changed row (new dates) updates the existing guest or adds a second one, and how cancellations get removed. That probably has to be manual or done through the RemoteLock API.
+- **Import behavior:** RemoteLock ignores duplicate rows, so re-uploading the full list is safe. Not yet known: whether a changed row (new dates, or a name that gained a last initial) updates the existing guest or adds a second one, and how cancellations get removed. That probably has to be manual or done through the RemoteLock API.
 - **Known issue:** RemoteLock has set schedules **1 day off** before. This is likely a time zone problem, where a date-only value is read as UTC midnight and then shifted to Mountain time. Check the time zone on the RemoteLock account and lock, and spot-check the first and last guest after each upload.
 - Delivery: manual upload today. Later, the RemoteLock API could replace the CSV.
 - Cancellations and date changes after upload must be applied to RemoteLock too. Output a delta (new / changed / cancelled) or a full snapshot, depending on how RemoteLock imports.
 
 ### 3. Guest parking messages (Big Sky)
 
-The Fairly MCP is **read-only** (checked Nov 11, 2026): it can't edit home directions or check-in text, and it can't message guests. Write access and the suggested door code were requested through the MCP's `report_outcome` feedback. As a workaround, `reminders.py` writes ready-to-send messages into the daily email, each with a link to the guest's thread. You copy and paste them.
+The Fairly MCP is **read-only**: it can't edit home directions or check-in text, and it can't message guests. As a workaround, `reminders.py` writes ready-to-send messages into the daily email, each with a link to the guest's thread. You copy and paste them.
 
-- **Schedule:** the gate code changes and the Huntley-Shoshone lot is plowed on the same Tuesday, every 14 days from `schedule_start` (2026-11-24; opening day is 11/25), at 9:00 AM. Plow (snow-removal) wording applies only between `snow_removal.season_start` and `season_end`.
+- **Schedule:** the gate code changes and the Huntley-Shoshone lot is plowed on the same Tuesday, every 14 days from `schedule_start` (2026-11-24). The code changes at `change_time` (9:00 AM); on plow days guests are told to move their car before `snow_removal.move_by` (6:00 AM). Plow (snow-removal) wording applies only between `snow_removal.season_start` and `season_end`.
 - **Codes:** `parking.gate_codes` in `config.json`, `{"YYYY-MM-DD": "code"}` keyed by change date. A date with the value `""` means the code isn't known yet: messages say `[GATE CODE TBD]` and the email warns you, but only when a message needs that code.
-  - **2026–27 season loaded** (Nov 21, 2026): codes for every other Tuesday from 2026-11-24 through 2027-03-30, from the HOA list.
+  - **2026–27 season loaded:** codes for every other Tuesday from 2026-11-24 through 2027-03-30, from the HOA list.
   - **Plow-only days:** the plow schedule continues to 2027-04-13 and 2027-04-27 with no new code. Those dates are left **out** of `gate_codes` on purpose (not `""`), so `reminders.is_gate_change` treats them as plow-only: the message has snow-removal wording only and the last code stays in effect. The HOA may yet send April codes; if so, add them as normal entries.
   - Only add a date to `gate_codes` if the code actually changes that day.
 - **Messages** (guests and owner's guests only, never the owner's own stays):
   - **Arrival:** the day before check-in. Includes the code at arrival, plus any code change or plow day during the stay.
-  - **Change/plow:** the day before a change day, for every guest with `check_in < day <= check_out`. That includes a guest checking out that morning, whose car is still in the lot at 9 AM.
+  - **Change/plow:** the day before a change day, for every guest with `check_in < day <= check_out`. That includes a guest checking out that morning, whose car may still be in the lot.
 - Any message triggers the email, even when no reservations changed.
 - The Big Sky **house manual in Fairly still lists the March–April 2026 codes and plow dates**. Remove them by hand in Fairly (Listings → house manual) and say the code is sent by message.
 
-### 4. Cleaning manager email (Big Sky)
+### 4. Cleaning manager email
 
 A separate email per home for that home's cleaning manager, configured by `cleaning_notify: {active, to_email, to_name}` on the home in `config.json`.
 
 - **Changing it:** `py cleaning.py` lists every home; `py cleaning.py on|off <home> --push` switches one; `py cleaning.py set <home> "Name" email --push` changes the recipient (the switch stays as it was; a new home starts off). Homes can be named by any unique part of the slug. `--push` commits and pushes `config.json` so the next cloud run uses it. Editing `config.json` on GitHub works too.
 - **On/off switch:** `active` (defaults to true if missing). Off means the cleaner never gets it; manual runs still send you a preview marked `[Test copy, cleaning email is off]`.
-- **Big Sky:** Mike Delao, live from the Nov 22, 2026 scheduled run.
-- **Destin:** Amber Greenwood (caretaker), live from the Nov 22, 2026 scheduled run. She can allow early check-in or late check-out at her discretion, but the email uses the same standard times.
-- **Papago Park:** Gr8 8 Partner Support (Great 8 Cleaning Co), live from the Nov 24, 2026 scheduled run.
+- All three homes are live; `py cleaning.py` shows the current recipients. Destin's recipient is the caretaker, who can allow early check-in or late check-out, but the email uses the same standard times.
 - All homes use the same times (4 PM / 10 AM), so the times line in the email is shared.
 
 - **Scheduled run:** sent to the cleaner only when that home has a New, Changed or Cancelled stay (or `notify.py --force`).
-- **Manual run (Run now):** always sent, but to the owner (`email.to_email`) instead of the cleaner, with the subject prefixed `[Test copy, not sent to <name>]`. Tests never reach him (`notify.cleaning_target`).
+- **Manual run (Run now):** always sent, but to the owner (`email.to_email`) instead of the cleaner, with the subject prefixed `[Test copy, not sent to <name>]`. Tests never reach the cleaner (`notify.cleaning_target`).
 - "Changed" means a change in check-in, check-out, guest name, guest type, adults or children (`sync.CLEANING_FIELDS`). A last initial being filled in is ignored.
 - Dates in this email are `m/d/yy` with no leading zeros (`3/7/27`), via `notify.us_date`; everything else stays `YYYY-MM-DD`.
 - Content: a "What changed" table (with the old dates or guest count), then always the full list of upcoming stays at that home. Name, dates and guest count only. Owner stays are included, labelled "(Owner)" / "(Owner's guest)"; Fairly has no guest count for the owner's own stays. No phones, payouts, links or attachments.
-- No changes are reported on a first run without a previous export, so he isn't sent every stay as "new".
+- No changes are reported on a first run without a previous export, so the cleaner isn't sent every stay as "new".
 - Built by `sync.cleaning_report` into `summary.json["cleaning"]`; sent by `notify.py`.
 
-## Architecture (proposed)
+## Architecture
 
 ```
-Timer (cron) ─► Azure Function
-                  ├─ Fetch: Fairly reservations for configured homes
-                  ├─ Filter + normalize ─► Reservation records
-                  ├─ Diff against last state (owner DB is the source of truth)
-                  ├─ Upsert changes ─► Owner API
-                  └─ Big Sky ─► RemoteLock CSV ─► Blob Storage (+ notify)
+Claude routine (6 AM Phoenix) ─► Fairly MCP connector ─► raw/*.json
+run_sync.sh ─► sync.py (diff against the exports branch) ─► output/
+            ├─► commit + push to the exports branch
+            └─► notify.py ─► messaging API ─► owner + cleaners
+Planned: upsert changes ─► Owner API (which then becomes the source of truth for the diff)
 ```
 
-### Runtime options
-
-- **A. Claude Scheduled Task (preferred, per the Fairly MCP team).** A cloud Claude agent runs on a cron schedule, fetches from Fairly through the MCP connector, then runs a **deterministic transform script kept in a git repo**. That script does the filtering, field mapping and the RemoteLock CSV, then calls the owner API. Claude only handles the fetch and the orchestration; business rules live in code with tests.
-  - Fairly auth: add Fairly as a **custom connector** on claude.ai (Settings → Connectors → Add custom connector, URL `https://mcp.fairly.com/`), then click Connect and sign in to Fairly once. The connector holds the login. No Fairly password goes in the task, prompt or repo.
-  - The routine needs this repo on GitHub (it clones it on each run).
-- **B. Azure Function.** Requires headless Fairly access, which isn't available yet.
-
-- Secrets (Fairly credentials, owner API key) go in **Azure Key Vault**, through Function app settings references.
-- Generated CSVs go in **Blob Storage** with a short retention period. They contain guest PII (names, phone numbers).
-- Logging: Application Insights. Never log phone numbers or full guest records.
-
-## Plan
-
-1. **Resolve open questions** (below). Phase 2 is blocked on #1.
-2. **Fairly access spike**: prove a headless job can authenticate and call `search_reservations` / `get_reservation_by_id`.
-3. **Transform module**: pure functions (raw reservation → record), with unit tests using the saved JSON samples. Covers status filtering, in-progress stays, the last-initial parser, missing phones, owner stays and payout extraction.
-4. **Owner API client**: upsert and cancel; idempotent; retry with backoff.
-5. **RemoteLock CSV writer**: Big Sky filter, exact column order, delta logic.
-6. **Azure Function**: timer trigger, config, Key Vault, Blob output, alerting on failure; deploy with infrastructure-as-code.
-7. **Parallel run**: compare automated output against a manual export for 1–2 weeks before relying on it.
+- Claude only fetches and orchestrates; business rules live in code with tests.
+- Fairly auth is the **custom connector** on claude.ai (`https://mcp.fairly.com/`), which holds the login. No Fairly password goes in the routine, prompt or repo.
+- A failed push to `exports` doesn't block the email: it's noted in the email and the run exits non-zero.
+- If this ever moves to an Azure Function (needs headless Fairly access, not available): secrets in Key Vault, CSVs in Blob Storage with short retention, and never log phone numbers or full guest records.
 
 ## Open questions
 
-1. **Fairly access outside Claude.** The Fairly MCP team says they run the MCP on a schedule through **Claude Scheduled Tasks** (cloud routines). That is now the leading option in place of an Azure Function; see "Runtime options". To verify: Fairly is connected as a claude.ai connector, the routine can reach the owner API, and secrets can be supplied to it.
-2. **Owner API**: base URL, auth method, endpoints and payload schema for upserting reservations. Is there an existing reservations table, or a new one?
-3. **RemoteLock details**: the column list is known (see Outputs). Still open: the PIN source, the `department` value, the accepted date/time formats, whether re-importing updates or duplicates existing guests, and whether to use the RemoteLock API instead.
-4. **Owner and owner's-guest stays in RemoteLock**: include them?
-5. **Schedule**: how often? Hourly catches last-minute bookings; daily is simpler.
-6. **Language/runtime** for the Function: C#/.NET, Python or Node?
-7. **Owner Payout**: resolved; it uses the expected amount from the planned payout split. Should the API also store the actual paid-out amount once the `payouts` rows exist (after check-in)?
-8. **Retention**: how long to keep guest phone numbers in the DB and Blob Storage?
+1. **Owner API**: base URL, auth method, endpoints and payload schema for upserting reservations. Is there an existing reservations table, or a new one? How are its secrets supplied to the routine?
+2. **RemoteLock**: does re-importing a changed row update or duplicate the guest, and should the RemoteLock API replace the CSV?
+3. **Payouts**: should the API also store the actual paid-out amount once the `payouts` rows exist (after check-in)?
+4. **Retention**: how long to keep guest phone numbers in the DB and on the `exports` branch?
 
 ## Conventions
 
