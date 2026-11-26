@@ -55,6 +55,12 @@ class ScheduleTests(unittest.TestCase):
 
 
 class BuildTests(unittest.TestCase):
+    def test_owner_sees_full_last_name_guest_message_uses_first_name(self):
+        r = {**rec("2026-12-01", "2026-12-04"), "Guest Last Name": "Example"}
+        (msg,), _ = reminders.build_reminders([r], CONFIG, date(2026, 11, 30))
+        self.assertEqual(msg["guest"], "Testa Example")
+        self.assertNotIn("Example", msg["message"])
+
     def test_arrival_message_day_before(self):
         msgs, warnings = reminders.build_reminders([rec("2026-12-05", "2026-12-10")], CONFIG, date(2026, 12, 4))
         self.assertEqual(len(msgs), 1)

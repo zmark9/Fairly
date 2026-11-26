@@ -173,14 +173,18 @@ def build_cleaning_body(report, run_date):
 USER_AGENT = "FairlyReservationSync/1.0"
 
 
-def email_fields(cfg, subject, body):
-    """Form fields matching the API's EmailToSend model (From* is set by the API)."""
-    return {
+def email_fields(cfg, subject, body, bcc=""):
+    """Form fields matching the API's EmailToSend model (From* is set by the API).
+    Bcc is a separate form field; the API honours it only for addresses in its AllowedBcc list."""
+    fields = {
         "ToEmail": cfg["to_email"],
         "ToName": cfg.get("to_name", ""),
         "Subject": subject,
         "EmailBody": body,
     }
+    if bcc:
+        fields["Bcc"] = bcc
+    return fields
 
 
 def multipart_request(url, fields, attachments):
@@ -253,7 +257,7 @@ def main(argv=None):
             continue
         to, prefix = target
         fields = email_fields(to, prefix + build_cleaning_subject(report, summary["run_date"]),
-                              build_cleaning_body(report, summary["run_date"]))
+                              build_cleaning_body(report, summary["run_date"]), cleaning_bcc(to, cfg))
         status |= send(api_url, fields, [], args, f"Cleaning ({report['property']})")
     return status
 
@@ -274,6 +278,15 @@ def cleaning_target(recipient, owner_cfg, manual, has_changes, force=False):
     if active and (has_changes or force):
         return recipient, ""
     return None
+
+
+def cleaning_bcc(to, owner_cfg):
+    """Blind-copy the owner on every email that really goes to a cleaner (email.bcc_cleaning,
+    default on), so there is a record of exactly what they got. Test copies already go to the owner."""
+    if not owner_cfg.get("bcc_cleaning", True) or to is owner_cfg:
+        return ""
+    owner = owner_cfg.get("to_email", "")
+    return owner if owner and owner.lower() != to.get("to_email", "").lower() else ""
 
 
 def send(url, fields, attachments, args, label):

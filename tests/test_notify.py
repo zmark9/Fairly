@@ -71,6 +71,16 @@ class CleaningEmailTests(unittest.TestCase):
         self.assertIn("<td>1/2/27</td>", body)
         self.assertNotIn("2027-", body)
 
+    def test_cleaning_bcc(self):
+        owner = {"to_email": "owner@example.test"}
+        cleaner = {"to_email": "cleaner@example.test"}
+        self.assertEqual(notify.cleaning_bcc(cleaner, owner), "owner@example.test")
+        self.assertEqual(notify.cleaning_bcc(owner, owner), "")                       # test copy to the owner
+        self.assertEqual(notify.cleaning_bcc({"to_email": "OWNER@example.test"}, owner), "")
+        self.assertEqual(notify.cleaning_bcc(cleaner, {**owner, "bcc_cleaning": False}), "")
+        self.assertEqual(notify.email_fields(cleaner, "s", "b", "owner@example.test")["Bcc"], "owner@example.test")
+        self.assertNotIn("Bcc", notify.email_fields(cleaner, "s", "b"))
+
     def test_us_date(self):
         self.assertEqual(notify.us_date("2027-03-07"), "3/7/27")
         self.assertEqual(notify.us_date("dates were 2026-12-28 to 2027-01-02"), "dates were 12/28/26 to 1/2/27")

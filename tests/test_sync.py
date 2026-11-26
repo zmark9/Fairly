@@ -107,6 +107,16 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(rec["Caretaker Payout"], "190.25")    # 150 + 40.25
         self.assertEqual(rec["Booked On"], "2026-10-31")       # 03:30 UTC = previous evening in Denver
         self.assertEqual(rec["Pets"], 0)
+        self.assertEqual(rec["Guest Last Name"], "")
+
+    def test_full_last_name_for_owner_reports_only(self):
+        rec = records_for(make_detail("r", initial=None, last_name="  van  Example "))[0]
+        self.assertEqual(rec["Guest Last Name"], "van Example")
+        self.assertIn("Testa van Example", sync.short(rec))
+        self.assertEqual(sync.remotelock_row(rec)["name"], "Testa E.")
+        self.assertEqual(sync._cleaning_row(rec)["guest"], "Testa E.")
+        # No last name from Fairly: the summary falls back to the initial.
+        self.assertIn("Testa Z.", sync.short(records_for(make_detail("r"))[0]))
 
     def test_owner_stay(self):
         rec = records_for(make_detail("own", guest_type="OWNER", channel="FAIRLY_WEB", initial=None,
@@ -126,7 +136,7 @@ class RecordTests(unittest.TestCase):
                                     ("Parker (2)", "P"), (" Qu ", "Q")]:
             rec = records_for(make_detail("r", initial=None, last_name=last_name))[0]
             self.assertEqual(rec["Last Initial"], expected, last_name)
-            self.assertNotIn(last_name, rec.values())  # only the initial is kept
+            self.assertNotIn(last_name, sync.remotelock_row(rec).values())  # RemoteLock gets the initial only
         # It wins over the message text; a blank one falls back to it.
         self.assertEqual(records_for(make_detail("r", initial="Z", last_name="Parker"))[0]["Last Initial"], "P")
         self.assertEqual(records_for(make_detail("r", initial="Z", last_name=" "))[0]["Last Initial"], "Z")

@@ -53,6 +53,7 @@ Live and running daily: Fairly fetch, transform, RemoteLock CSV, exports branch,
 - The application ID is fixed at 1 in the API (`EmailController.SendEmail` in `C:\Source\Active\Message\API-Messaging`; changed from 2 on Nov 21 2026), which also sets the From address (`GetAdminInfo`). Don't send From fields.
 - A `checkUserAgent` filter blocks script User-Agents (`python-urllib`, `python-requests`, `curl/`, `Headless`, ...). `notify.py` sends `FairlyReservationSync/1.0`; keep it that way.
 - Auth: none for now (shelved). It uses the `PublicForm` rate limit.
+- **Bcc:** `sendemailform` takes an optional `Bcc` form field (not part of the shared `EmailToSend` model). The API uses it only if the address is in `AllowedBcc` in its `appsettings.json`, so the open endpoint can't add recipients; anything else is silently dropped. `notify.cleaning_bcc` sends the owner's address on every email that really goes to a cleaner (`email.bcc_cleaning`, default on). An API without this change ignores the field.
 - The old `sendemail` ([FromBody]) action is still used elsewhere. Don't change it.
 
 ## Homes in scope
@@ -97,7 +98,8 @@ The unique key is the **Fairly reservation ID** (`ID`). Every write must be idem
 | Check-out | `CHECK_OUT` | Date. Time comes from `CHECK_OUT_AT` (normally 10 AM). |
 | Nights | derived | `CHECK_OUT - CHECK_IN` |
 | Guest First Name | `GUEST_FIRST_NAME` | |
-| Last Initial | First letter of `GUEST_LAST_NAME` (last word if there are several; exposed by the MCP since Nov 2026). Fallbacks: the old "Reservation created" message text, then the `MESSAGE_AUTHOR` of a message the guest wrote. | The full last name never reaches the outputs. The owner's own stays use the owner's initial from `config.json`. |
+| Guest Last Name | `GUEST_LAST_NAME` (whitespace collapsed) | **Owner's outputs only**: the reservation CSVs and the summary/email guest names (`sync.owner_name`). Not tracked as a change. |
+| Last Initial | First letter of `GUEST_LAST_NAME` (last word if there are several; exposed by the MCP since Nov 2026). Fallbacks: the old "Reservation created" message text, then the `MESSAGE_AUTHOR` of a message the guest wrote. | RemoteLock names and cleaning emails use only this initial. The owner's own stays use the owner's initial from `config.json`. |
 | Guest Type | `GUEST_TYPE` | Guest / Owner / Owner's guest |
 | Phone | `GUEST_PHONE_NUMBERS[0]` | **Airbnb stopped sharing real guest phones in late Oct 2026** and now only gives a proxy number, so new Airbnb bookings arrive with no phone. Missing phones on Airbnb are expected (no warning); VRBO and direct bookings still have them. |
 | Email | n/a | **Not available from Fairly.** Kept as an empty column for compatibility. |
@@ -161,7 +163,7 @@ A separate email per home for that home's cleaning manager, configured by `clean
 - All three homes are live; `py cleaning.py` shows the current recipients. Destin's recipient is the caretaker, who can allow early check-in or late check-out, but the email uses the same standard times.
 - All homes use the same times (4 PM / 10 AM), so the times line in the email is shared.
 
-- **Scheduled run:** sent to the cleaner only when that home has a New, Changed or Cancelled stay (or `notify.py --force`).
+- **Scheduled run:** sent to the cleaner only when that home has a New, Changed or Cancelled stay (or `notify.py --force`), with the owner blind-copied (see Bcc above).
 - **Manual run (Run now):** always sent, but to the owner (`email.to_email`) instead of the cleaner, with the subject prefixed `[Test copy, not sent to <name>]`. Tests never reach the cleaner (`notify.cleaning_target`).
 - "Changed" means a change in check-in, check-out, guest name, guest type, adults or children (`sync.CLEANING_FIELDS`). A last initial being filled in is ignored.
 - Dates in this email are `m/d/yy` with no leading zeros (`3/7/27`), via `notify.us_date`; everything else stays `YYYY-MM-DD`.

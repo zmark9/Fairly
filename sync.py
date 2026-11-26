@@ -71,6 +71,7 @@ RESERVATION_COLUMNS = [
     "Check-out",
     "Nights",
     "Guest First Name",
+    "Guest Last Name",
     "Last Initial",
     "Guest Type",
     "Phone",
@@ -263,7 +264,8 @@ def last_initial(detail, owner):
     2. the old 'Reservation created' message text ('...reservation with Sierra P.'),
        which get_conversations no longer returns (now just 'Reservation created');
     3. the author name on a message the guest wrote ('Sierra Parker').
-    Only the initial is kept; the full last name never reaches the output files."""
+    The full last name goes only to the owner's files ("Guest Last Name"); the RemoteLock
+    file and the cleaning emails use this initial."""
     reservation = detail["reservation"]
     if reservation.get("GUEST_TYPE") == "OWNER":
         return owner.get("last_initial", "")
@@ -350,6 +352,7 @@ def build_record(detail, home, owner, today):
         "Check-out": check_out.isoformat(),
         "Nights": (check_out - check_in).days,
         "Guest First Name": (r.get("GUEST_FIRST_NAME") or "").strip(),
+        "Guest Last Name": " ".join((r.get("GUEST_LAST_NAME") or "").split()),
         "Last Initial": last_initial(detail, owner),
         "Guest Type": GUEST_TYPE_LABELS.get(r.get("GUEST_TYPE"), r.get("GUEST_TYPE") or ""),
         "Phone": format_phone(phones[0]) if phones else "",
@@ -566,9 +569,17 @@ def write_csv(path, columns, rows):
         writer.writerows(rows)
 
 
+def owner_name(rec):
+    """Guest name for the owner's own reports: full last name when known, else the initial.
+    (Cleaners and RemoteLock only ever get the initial.)"""
+    if rec.get("Guest Last Name"):
+        return f"{rec['Guest First Name']} {rec['Guest Last Name']}"
+    return rec["Guest First Name"] + (f" {rec['Last Initial']}." if rec.get("Last Initial") else "")
+
+
 def short(rec):
-    """One-line description of a reservation for summaries."""
-    name = rec["Guest First Name"] + (f" {rec['Last Initial']}." if rec.get("Last Initial") else "")
+    """One-line description of a reservation for the owner's summary."""
+    name = owner_name(rec)
     return f"{rec['Property']}: {rec['Check-in']} to {rec['Check-out']}, {name}"
 
 

@@ -173,7 +173,11 @@ def build_reminders(records, config, today):
 
 
 def _reminder(kind, rec, text):
-    name = rec["Guest First Name"] + (f" {rec['Last Initial']}." if rec.get("Last Initial") else "")
+    # Shown only to the owner (the message text itself uses the first name).
+    if rec.get("Guest Last Name"):
+        name = f"{rec['Guest First Name']} {rec['Guest Last Name']}"
+    else:
+        name = rec["Guest First Name"] + (f" {rec['Last Initial']}." if rec.get("Last Initial") else "")
     return {
         "type": kind,
         "property": rec["Property"],
