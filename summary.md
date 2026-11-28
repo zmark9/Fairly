@@ -1,6 +1,6 @@
-# Fairly sync 2026-11-27
+# Fairly sync 2026-11-28
 
-21 upcoming reservations: Papago Park Condo #1117  12, Shoshone #1925 at Big Sky Mountain  8, Palms of Destin Condo #1807 1
+20 upcoming reservations: Papago Park Condo #1117  11, Shoshone #1925 at Big Sky Mountain  8, Palms of Destin Condo #1807 1
 
-## New
-- Shoshone #1925 at Big Sky Mountain : 2027-02-27 to 2027-03-03, Randy DuFresne
+## Cancelled / removed
+- Papago Park Condo #1117 : 2027-01-11 to 2027-01-17, Ashley Vanderwerff
